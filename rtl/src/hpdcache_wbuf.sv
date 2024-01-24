@@ -666,13 +666,13 @@ module hpdcache_wbuf
             $fatal("WBUF: width of data buffers must be a power of 2");
     initial assert(WBUF_SEND_FEEDTHROUGH == 1'b0) else
             $fatal("WBUF: WBUF_SEND_FEEDTHROUGH=1 is currently not supported");
-    ack_sent_assert: assert property (@(posedge clk_i) disable iff (!rst_ni)
+    ack_sent_assert: assert property (@(posedge clk_i) disable iff (rst_ni !== '1)
             (ack_i -> (wbuf_dir_state_q[ack_id_i] == WBUF_SENT))) else
             $error("WBUF: acknowledging a not SENT slot");
-    send_pend_assert: assert property (@(posedge clk_i) disable iff (!rst_ni)
+    send_pend_assert: assert property (@(posedge clk_i) disable iff (rst_ni !== '1)
             (send_meta_valid -> (wbuf_dir_state_q[wbuf_dir_send_ptr_q] == WBUF_PEND))) else
             $error("WBUF: sending a not PEND slot");
-    send_valid_data_assert: assert property (@(posedge clk_i) disable iff (!rst_ni)
+    send_valid_data_assert: assert property (@(posedge clk_i) disable iff (rst_ni !== '1)
             (send_data_valid_o -> (wbuf_data_valid_q[send_data_q.send_data_ptr] == 1'b1))) else
             $error("WBUF: sending a not valid data");
     //  pragma translate_on

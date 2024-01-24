@@ -111,9 +111,9 @@ module hpdcache_rrarb
     //  Assertions
     //  {{{
     //  pragma translate_off
-    gnt_at_most_one_requester: assert property (@(posedge clk_i) disable iff (!rst_ni)
+    gnt_at_most_one_requester: assert property (@(posedge clk_i) disable iff (rst_ni !== '1)
             $onehot0(gnt)) else $error("arbiter: granting more than one requester");
-    gnt_q_exactly_one_requester: assert property (@(posedge clk_i) disable iff (!rst_ni)
+    gnt_q_exactly_one_requester: assert property (@(posedge clk_i) disable iff (rst_ni !== '1)
             $onehot(gnt_q)) else $error("arbiter: grant state is not one-hot");
     //  pragma translate_on
     //  }}}
