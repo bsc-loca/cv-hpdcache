@@ -78,7 +78,7 @@ package hpdcache_params_pkg;
     `endif
 
     `ifdef PITON_ARIANE
-        localparam int unsigned PARAM_CL_WORDS = `CONFIG_L1D_CACHELINE_WIDTH/PARAM_WORD_WIDTH; //16 Bytes per cache-line harcoded
+        localparam int unsigned PARAM_CL_WORDS = `CONFIG_L1D_CACHELINE_WIDTH/PARAM_WORD_WIDTH;
     `else
         localparam int unsigned PARAM_CL_WORDS = `CONF_HPDCACHE_CL_WORDS;
     `endif
@@ -131,7 +131,7 @@ package hpdcache_params_pkg;
     `endif
 
     `ifdef PITON_ARIANE
-        localparam int unsigned PARAM_ACCESS_WORDS = 2;
+        localparam int unsigned PARAM_ACCESS_WORDS = PARAM_CL_WORDS; // Acces whole cache-line per cycle
     `else
         localparam int unsigned PARAM_ACCESS_WORDS = `CONF_HPDCACHE_ACCESS_WORDS;
     `endif
@@ -145,7 +145,7 @@ package hpdcache_params_pkg;
     `endif
 
     `ifdef PITON_ARIANE
-        localparam int unsigned PARAM_MSHR_SETS = 1;
+        localparam int unsigned PARAM_MSHR_SETS = (`L15_NUM_THREADS >> 1);
     `else
         localparam int unsigned PARAM_MSHR_SETS = `CONF_HPDCACHE_MSHR_SETS;
     `endif
@@ -197,7 +197,7 @@ package hpdcache_params_pkg;
          /* FIXME: Should we increase it even more? */
         localparam int PARAM_REFILL_FIFO_DEPTH = (PARAM_MSHR_SETS*PARAM_MSHR_WAYS) + 32'd10;
     `else
-        localparam int PARAM_REFILL_FIFO_DEPTH = `CONF_HPDCACHE_REFILL_FIFO_DEPTH
+        localparam int PARAM_REFILL_FIFO_DEPTH = `CONF_HPDCACHE_REFILL_FIFO_DEPTH;
     `endif
     //  }}}
 
