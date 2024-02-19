@@ -39,6 +39,25 @@ module hpdcache_sram_1rw
     output logic [DATA_SIZE-1:0]  rdata
 );
 
+
+`ifdef SRAM_IP
+
+    asic_sram_1p #(
+        .ADDR_WIDTH(ADDR_SIZE),
+        .DATA_WIDTH(DATA_SIZE)
+    ) sram (
+       .A(addr),
+       .DI(wdata),
+       .BW({DATA_SIZE{we}}),
+       .CLK(clk),
+       .CE(cs),
+       .RDWEN(we),
+       .DO(rdata)
+    );
+
+`else
+
+
     /*
      *  Internal memory array declaration
      */
@@ -57,4 +76,7 @@ module hpdcache_sram_1rw
             rdata <= mem[addr];
         end
     end : mem_update_ff
+
+`endif
+
 endmodule : hpdcache_sram_1rw
