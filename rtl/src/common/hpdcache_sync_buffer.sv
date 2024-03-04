@@ -72,7 +72,7 @@ module hpdcache_sync_buffer
         if (buf_we) buf_q <= wdata_i;
     end
 
-    assign rdata_o = FEEDTHROUGH && !valid_q ? wdata_i : buf_q;
+    assign rdata_o = ((FEEDTHROUGH && (!valid_q)) ? wdata_i : buf_q);
     //  }}}
 
     //  Setting of internal state
