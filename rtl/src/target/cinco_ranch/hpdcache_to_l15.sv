@@ -210,14 +210,12 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
     begin : swap_
         if (SwapEndianess) begin : swap_comb // Openpiton is big endian
             for (int unsigned i=0;i < L15_REQ_DATA_BYTE_NUM; i++) begin
-`ifdef WRITE_BYTE_MASK                
                l15_req_o.l15_be   [L15_REQ_DATA_BYTE_NUM-i-1]   = w_be_reduction_or[i]; 
-`endif               
                l15_req_o.l15_data [(i*8) +: 8] = req_wdata[`L15_REQ_DATA_WIDTH-(i*8)-1 -: 8];                
             end
         end else begin : noswap_comb
-                l15_req_o.l15_data = req_wdata;
-                l15_req_o.l15_be   = w_be_reduction_or; 
+               l15_req_o.l15_data = req_wdata;
+               l15_req_o.l15_be   = w_be_reduction_or; 
        end
     end 
 
