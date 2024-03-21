@@ -216,9 +216,9 @@ package hpdcache_params_pkg;
     `endif
     
     `ifdef PITON_ARIANE_HPDC
-        localparam int unsigned PARAM_WBUF_WORDS = (`PITON_HPDC_WR_BUFF_WORDS < PARAM_CL_WORDS) ? `PITON_HPDC_WR_BUFF_WORDS :  PARAM_CL_WORDS;
-    `else
         localparam int unsigned PARAM_WBUF_WORDS = 1;
+    `else
+        localparam int unsigned PARAM_WBUF_WORDS = `CONF_HPDCACHE_WBUF_WORDS;
     `endif
 
     //  HPDcache Write-Buffer threshold counter width (in bits)
