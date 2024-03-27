@@ -92,6 +92,41 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
         end
         return out;
     endfunction
+    
+    // openpiton requires the data to be replicated in case of smaller sizes than dwords
+  function automatic logic [63:0] repData64_simple(
+    input logic [63:0] data,
+    input logic [7:0]  be
+  );
+    logic [63:0] out;
+    out = data;
+    unique case(be)
+    //single byte
+    8'b00000001   : out[63:56] = data[7 : 0]; // d0,x ,x ,x ,x ,x ,x ,d0
+    8'b00000010   : out[55:48] = data[15: 8]; // x ,d1,x ,x ,x ,x ,d1,x
+    8'b00000100   : out[47:40] = data[23:16]; // x , x,d2,x ,x ,d2,x ,x
+    8'b00001000   : out[39:32] = data[31:24]; // x , x, x,d3,d3,x ,x ,x
+    8'b00010000   : out[31:24] = data[39:32]; // x , x, x,d4,d4,x ,x ,x
+    8'b00100000   : out[23:16] = data[47:40]; // x , x,d5,x ,x ,d5,x ,x 
+    8'b01000000   : out[15: 8] = data[55:48]; // x ,d6,x ,x ,x ,x ,d6,x
+    8'b10000000   : out[7 : 0] = data[63:56]; // d7, x,x ,x ,x ,x , x,d7
+    
+    8'b00000011   : out[63:48] = data[15: 0]; // d1,d0,x ,x ,x ,x ,d1,d0
+    8'b00001100   : out[47:32] = data[31:16]; // x , x,d3,d2,d3,d2,x ,x
+    8'b00110000   : out[31:16] = data[47:32]; // x , x,d5,d4,d5,d4,x ,x 
+    8'b11000000   : out[15: 0] = data[63:48]; // d7,d6,x ,x ,x ,x ,d7,d6
+    
+    8'b00001111   : out[63:32] = data[31: 0]; // d3,d2,d1,d0 ,d3 ,d2,d1,d0
+    8'b11110000   : out[31: 0] = data[63:32]; // d7,d6,d4,d3 ,d7 ,d6,d5,d4
+    
+    default: out   = data; // dword
+    endcase // be
+    return out;
+  endfunction : repData64_simple
+    
+    
+    
+    
     // }}}
     
      // Internal types
@@ -206,12 +241,19 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
            l15_req_o.l15_blockinitstore       = '0, // unused in openpiton
            l15_req_o.l15_l1rplway             = '0; // Not used for this adapter
     
+    logic [HPDcacheMemDataWidth-1:0]                  req_wdata_swaped;
+    
+    
     always_comb 
     begin : swap_
         if (SwapEndianess) begin : swap_comb // Openpiton is big endian
             for (int unsigned i=0;i < L15_REQ_DATA_BYTE_NUM; i++) begin
                l15_req_o.l15_be   [L15_REQ_DATA_BYTE_NUM-i-1]   = w_be_reduction_or[i]; 
-               l15_req_o.l15_data [(i*8) +: 8] = req_wdata[`L15_REQ_DATA_WIDTH-(i*8)-1 -: 8];                
+              // l15_req_o.l15_data [(i*8) +: 8] = req_wdata[`L15_REQ_DATA_WIDTH-(i*8)-1 -: 8];  
+               req_wdata_swaped [(i*8) +: 8] = req_wdata[`L15_REQ_DATA_WIDTH-(i*8)-1 -: 8];                
+            end
+            for(int unsigned i=0;i <(L15_REQ_DATA_BYTE_NUM/8);i++)begin 
+                l15_req_o.l15_data [(i*64) +: 64] = repData64_simple(req_wdata_swaped [(i*64) +: 64],l15_req_o.l15_be[(i*8) +: 8]);
             end
         end else begin : noswap_comb
                l15_req_o.l15_data = req_wdata;
