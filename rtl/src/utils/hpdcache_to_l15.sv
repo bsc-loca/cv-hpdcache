@@ -96,32 +96,31 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
     input logic [63:0] data,
     input logic [7:0]  be
   );
-    logic [63:0] out;
-    out = data;  //initial out = d7,d6,d5,d4,d3,d2,d1,d0
+    logic [63:0] out; //initial out = d7,d6,d5,d4,d3,d2,d1,d0
+    out = data;
     unique case(be)
     //single byte
     8'b00000001   : {out[63:56],out[ 7:0]} = {2{data[7 : 0]}}; // d0,x ,x ,x ,x ,x ,x ,d0
-    8'b00000010   : {out[55:48],out[ 7:0]} = {2{data[15: 8]}}; // x ,d1,x ,x ,x ,x ,d1,d1
-    8'b00000100   : {out[47:40],out[ 7:0]} = {2{data[23:16]}}; // x , x,d2,x ,x ,d2,x ,d2
-    8'b00001000   : {out[39:32],out[ 7:0]} = {2{data[31:24]}}; // x , x, x,d3,d3,x ,x ,d3
-    8'b00010000   : {out[31:24],out[ 7:0]} = {2{data[39:32]}}; // x , x, x,d4,d4,x ,x ,d4
-    8'b00100000   : {out[23:16],out[ 7:0]} = {2{data[47:40]}}; // x , x,d5,x ,x ,d5,x ,d5 
-    8'b01000000   : {out[15: 8],out[ 7:0]} = {2{data[55:48]}}; // x ,d6,x ,x ,x ,x ,d6,d6
-    8'b10000000   : {out[63:56],out[ 7:0]} = {2{data[63:56]}}; // d7, x,x ,x ,x ,x , x,d7
+    8'b00000010   : {out[63:56],out[ 7:0]} = {2{data[15: 8]}}; // d1,x ,x ,x ,x ,x ,d1,d1
+    8'b00000100   : {out[63:56],out[ 7:0]} = {2{data[23:16]}}; // d2,x ,x ,x ,x ,d2,x ,d2
+    8'b00001000   : {out[63:56],out[ 7:0]} = {2{data[31:24]}}; // d3,x ,x ,x ,d3,x ,x ,d3
+    8'b00010000   : {out[63:56],out[ 7:0]} = {2{data[39:32]}}; // d4,x ,x,d4 ,x ,x ,x ,d4
+    8'b00100000   : {out[63:56],out[ 7:0]} = {2{data[47:40]}}; // d5,x ,d5,x ,x ,x ,x ,d5 
+    8'b01000000   : {out[63:56],out[ 7:0]} = {2{data[55:48]}}; // d6,d6,x ,x ,x ,x ,x ,d6
+    8'b10000000   : {out[63:56],out[ 7:0]} = {2{data[63:56]}}; // d7,x ,x ,x ,x ,x ,x ,d7
     
     8'b00000011   : {out[63:48],out[15:0]} = {2{data[15: 0]}}; // d1,d0,x ,x ,x ,x ,d1,d0
-    8'b00001100   : {out[47:32],out[15:0]} = {2{data[31:16]}}; // x , x,d3,d2,d3,d2,d3,d2
-    8'b00110000   : {out[31:16],out[15:0]} = {2{data[47:32]}}; // x , x,d5,d4,d5,d4,d5,d4 
-    8'b11000000   : {out[15: 0],out[15:0]} = {2{data[63:48]}}; // d7,d6,x ,x ,x ,x ,d7,d6
+    8'b00001100   : {out[63:48],out[15:0]} = {2{data[31:16]}}; // d3,d2,x ,x ,d3,d2,d3,d2
+    8'b00110000   : {out[63:48],out[15:0]} = {2{data[47:32]}}; // d5,d4,d5,d4,x ,x ,d5,d4
+    8'b11000000   : {out[63:48],out[15:0]} = {2{data[63:48]}}; // d7,d6,x ,x ,x ,x ,d7,d6
     
     8'b00001111   :  out                   = {2{data[31: 0]}}; // d3,d2,d1,d0,d3,d2,d1,d0
-    8'b11110000   :  out                   = {2{data[63:32]}}; // d7,d6,d5,d4,d7,d6,d5,d4
+    8'b11110000   :  out                   = {2{data[63:32]}}; // d7,d6,d4,d3,d7,d6,d5,d4
     
     default: out   = data; // dword
     endcase // be
     return out;
-  endfunction : repData64_simple  
-    
+  endfunction : repData64_simple
     
     
     // }}}
