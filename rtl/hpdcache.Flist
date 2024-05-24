@@ -23,6 +23,12 @@
 //  Description   : File list for the HPDcache
 //  History       :
 //
+
+// Simulation / FPGA / ASIC memory library
+${HPDCACHE_DIR}/rtl/memory_library/include/bist_define.h
+-F ${HPDCACHE_DIR}/rtl/memory_library/Flist.memory_library
+
+// HPDC itself
 +incdir+${HPDCACHE_DIR}/rtl/include
 ${HPDCACHE_DIR}/rtl/src/hpdcache_pkg.sv
 ${HPDCACHE_DIR}/rtl/src/common/hpdcache_demux.sv
