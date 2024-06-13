@@ -30,9 +30,9 @@ module hpdcache_l15_resp_demux
   parameter int         N  = 0,
   parameter type resp_t    = logic,
   parameter type resp_id_t = logic,
-  parameter type req_portid_t = logic,
-  localparam int RT_DEPTH  = (1 << $bits(resp_id_t)),
-  localparam type rt_t     = resp_id_t [RT_DEPTH-1:0]
+  parameter type req_portid_t = logic//,
+  //localparam int RT_DEPTH  = (1 << $bits(resp_id_t)),
+  //localparam type rt_t     = resp_id_t [RT_DEPTH-1:0]
 
 )
 //  }}}
