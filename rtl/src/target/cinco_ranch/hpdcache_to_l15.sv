@@ -224,6 +224,7 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
                                                 // IMiss Unch: 4B Cach: 32B cacheline; Load/Store/AMO Max 16B cacheline (other possible sizes: 1,2,4,8B)
            l15_req_o.l15_size                 = (req_is_ifill)                              ? ((req_i.mem_req_cacheable) ? IcacheCachableSize : IcacheNoCachableSize) : // IMiss
                                                 (req_is_write  && ~WriteByteMaskEnabled)    ? req_wt_size :  // Store (1/2/4/8) 
+                                                (req_is_atomic && req_i.mem_req_atomic==hpdcache_pkg::HPDCACHE_MEM_ATOMIC_LDEX) ? 3'b111 :
                                                 req_i.mem_req_size + 1'b1, // Load & Unc. Load &  Unc. Store (1/2/4/8) & AMO (4/8) & Store (8)
            l15_req_o.l15_threadid             = req_thid, 
                                                 // If WBME=0, the store req. hast to be aligned to its size (by default its aligned to WBUF entry size). 
@@ -265,7 +266,7 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
            req_is_write                       = req_index_i[DcacheWbufPort]     & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_WRITE), // Store
            req_is_unc_read                    = req_index_i[DcacheUncReadPort]  & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_READ),  // Unc. Load  
            req_is_unc_write                   = req_index_i[DcacheUncWritePort] & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_WRITE), // Unc. Store 
-           req_is_atomic                      = req_index_i[DcacheUncWritePort] & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_ATOMIC);// AMO
+           req_is_atomic                      = (req_index_i[DcacheUncWritePort] || req_index_i[DcacheUncReadPort]) & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_ATOMIC); // AMO
 
     // Data sended by the request
     // If the request is a AMO_CLR, its translated as a AMO_AND. Therefore, the data sended has to be inverted
