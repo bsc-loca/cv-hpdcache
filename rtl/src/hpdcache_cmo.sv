@@ -226,12 +226,19 @@ import hpdcache_pkg::*;
         end
     end
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin
-        cmoh_op_q      <= cmoh_op_d;
-        cmoh_addr_q    <= cmoh_addr_d;
-        cmoh_way_q     <= cmoh_way_d;
-        cmoh_set_cnt_q <= cmoh_set_cnt_d;
+        if (!rst_ni) begin
+            cmoh_op_q      <= '0;
+            cmoh_addr_q    <= '0;
+            cmoh_way_q     <= '0;
+            cmoh_set_cnt_q <= '0;
+        end else begin 
+            cmoh_op_q      <= cmoh_op_d;
+            cmoh_addr_q    <= cmoh_addr_d;
+            cmoh_way_q     <= cmoh_way_d;
+            cmoh_set_cnt_q <= cmoh_set_cnt_d;
+        end
     end
 //  }}}
 
