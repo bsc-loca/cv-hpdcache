@@ -39,6 +39,9 @@ import hpdcache_pkg::*;
 //  Ports
 //  {{{
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input wire [27:0] uhdusplr_mem_ctrl,
+    `endif
     input  logic                  clk_i,
     input  logic                  rst_ni,
 
@@ -688,6 +691,9 @@ import hpdcache_pkg::*;
     //  Miss Status Holding Register component
     //  {{{
     hpdcache_mshr hpdcache_mshr_i (
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+        `endif
         .clk_i,
         .rst_ni,
 

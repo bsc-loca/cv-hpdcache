@@ -28,6 +28,9 @@ import hpdcache_pkg::*;
     //  Ports
     //  {{{
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input wire [27:0] uhdusplr_mem_ctrl,
+    `endif
     //  Clock and reset signals
     input  logic              clk_i,
     input  logic              rst_ni,
@@ -372,6 +375,9 @@ import hpdcache_pkg::*;
                     .ADDR_SIZE     (HPDCACHE_MSHR_SET_WIDTH),
                     .DEPTH         (HPDCACHE_MSHR_SETS)
                 ) mshr_mem(
+                    `ifdef INTEL_PHYSICAL_MEM_CTRL
+                    .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+                    `endif
                     .clk           (clk_i),
                     .rst_n         (rst_ni),
                     .cs            (mshr_cs),

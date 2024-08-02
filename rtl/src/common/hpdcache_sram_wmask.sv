@@ -30,6 +30,9 @@ module hpdcache_sram_wmask
     parameter int unsigned DEPTH = 2**ADDR_SIZE
 )
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input wire [27:0] uhdusplr_mem_ctrl,
+    `endif
     input  logic                  clk,
     input  logic                  rst_n,
     input  logic                  cs,
@@ -50,6 +53,9 @@ module hpdcache_sram_wmask
         `endif
         .INIT_MEMORY_ON_RESET('0) // HPDC doesn't initialize any SRAM
     ) sram (
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .INTEL_MEM_CTRL(uhdusplr_mem_ctrl),
+        `endif
         .SR_ID('0),
         .clk(clk),
         .rst_n(rst_n),

@@ -41,6 +41,9 @@ import hpdcache_pkg::*;
     //  Ports
     //  {{{
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input wire [27:0] uhdusplr_mem_ctrl,
+    `endif
     //      Clock and reset signals
     input  logic                          clk_i,
     input  logic                          rst_ni,
@@ -290,6 +293,9 @@ import hpdcache_pkg::*;
     //  HPDcache controller
     //  {{{
     hpdcache_ctrl hpdcache_ctrl_i(
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+        `endif
         .clk_i,
         .rst_ni,
 
@@ -488,6 +494,9 @@ import hpdcache_pkg::*;
         .hpdcache_mem_req_t                 (hpdcache_mem_req_t),
         .hpdcache_mem_resp_r_t              (hpdcache_mem_resp_r_t)
     ) hpdcache_miss_handler_i(
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+        `endif
         .clk_i,
         .rst_ni,
 

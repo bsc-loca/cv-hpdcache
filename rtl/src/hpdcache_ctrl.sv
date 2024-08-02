@@ -32,6 +32,9 @@ import hpdcache_pkg::*;
     // Ports
     // {{{
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input  logic [27:0]           uhdusplr_mem_ctrl,
+    `endif
     input  logic                  clk_i,
     input  logic                  rst_ni,
 
@@ -570,6 +573,9 @@ import hpdcache_pkg::*;
            st2_req_word  = hpdcache_get_req_addr_word(st2_req_addr_q);
 
     hpdcache_memctrl hpdcache_memctrl_i (
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+        `endif
         .clk_i,
         .rst_ni,
 
