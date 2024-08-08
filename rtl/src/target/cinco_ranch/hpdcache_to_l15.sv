@@ -158,7 +158,6 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
     wt_cache_pkg::amo_t                         req_amo_op_type;
     // Data & Byte mask sended by the request
     logic [HPDcacheMemDataWidth-1:0]                  req_wdata;
-    logic [(hpdcache_pkg::HPDCACHE_WORD_WIDTH/8)-1:0] req_wbe;
     // FSM State 
     thread_id_fsm_t                             th_state_q, th_state_d;
     // HPDC Req ID
@@ -184,15 +183,15 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
        L15_REQ_DATA_BYTE_NUM        = `L15_REQ_DATA_WIDTH/8,
        OFFSET_WIDTH = $clog2(L15_REQ_DATA_BYTE_NUM),
        REGION_WIDTH = OFFSET_WIDTH-6;
-    wire [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_array  [0 : WORD_NUM-1];
+    logic [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_array  [0 : WORD_NUM-1];
     genvar k;
     generate 
     for(k=0;k<WORD_NUM;k++) begin : sep2
        assign w_be_array [k] = req_data_i.mem_req_w_be [(k+1)*L15_REQ_DATA_BYTE_NUM-1 : k*L15_REQ_DATA_BYTE_NUM];
     end
     endgenerate    
-    reg [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_reduction_or;
-    reg [OFFSET_WIDTH-1 : 0] first_one_loc;
+    logic [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_reduction_or;
+    logic [OFFSET_WIDTH-1 : 0] first_one_loc;
     logic [$clog2(HPDcacheMemDataWidth/8):0]  first_one_pos,num_ones;
     // L1.5 Response data
     logic [wt_cache_pkg::L1_MAX_DATA_PACKETS_BITS_WIDTH-1:0] resp_data;
