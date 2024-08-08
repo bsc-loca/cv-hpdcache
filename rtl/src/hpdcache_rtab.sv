@@ -608,12 +608,18 @@ import hpdcache_pkg::*;
         end
     end
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : rtab_ff
-        for (int i = 0; i < N; i++) begin
-            //  update the request array
-            if (valid_set[i]) begin
-                req_q[i] <= alloc_req_i;
+        if (!rst_ni) begin
+            for (int i = 0; i < N; i++) begin
+                req_q[i] <= '0;
+            end
+        end else begin
+            for (int i = 0; i < N; i++) begin
+                //  update the request array
+                if (valid_set[i]) begin
+                    req_q[i] <= alloc_req_i;
+                end
             end
         end
     end

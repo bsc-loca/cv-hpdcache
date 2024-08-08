@@ -252,9 +252,12 @@ import hpdcache_pkg::*;
         assign mem_req_o.mem_req_id = '0;
     end
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : miss_req_fsm_internal_ff
-        if (mshr_alloc) begin
+        if (!rst_ni) begin
+            mshr_alloc_way_q <= '0;
+            mshr_alloc_nline_q <= '0;
+        end else if (mshr_alloc) begin
             mshr_alloc_way_q <= mshr_alloc_way_d;
             mshr_alloc_nline_q <= mshr_alloc_nline_i;
         end
@@ -672,19 +675,31 @@ import hpdcache_pkg::*;
         end
     end
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : miss_resp_fsm_internal_ff
-        if ((refill_fsm_q == REFILL_WRITE) && (refill_cnt_q == 0)) begin
-            refill_set_q <= mshr_ack_nline[0                  +: HPDCACHE_SET_WIDTH];
-            refill_tag_q <= mshr_ack_nline[HPDCACHE_SET_WIDTH +: HPDCACHE_TAG_WIDTH];;
-            refill_way_q <= refill_victim_way_i;
-            refill_sid_q <= mshr_ack_src_id;
-            refill_tid_q <= mshr_ack_req_id;
-            refill_need_rsp_q <= mshr_ack_need_rsp;
-            refill_is_prefetch_q <= mshr_ack_is_prefetch;
-            refill_core_rsp_word_q <= mshr_ack_word;
+        if (!rst_ni) begin
+            refill_set_q <= '0;
+            refill_tag_q <= '0;
+            refill_way_q <= '0;
+            refill_sid_q <= '0;
+            refill_tid_q <= '0;
+            refill_need_rsp_q <= '0;
+            refill_is_prefetch_q <= '0;
+            refill_core_rsp_word_q <= '0;
+            refill_cnt_q <= '0;
+        end else begin
+            if ((refill_fsm_q == REFILL_WRITE) && (refill_cnt_q == 0)) begin
+                refill_set_q <= mshr_ack_nline[0                  +: HPDCACHE_SET_WIDTH];
+                refill_tag_q <= mshr_ack_nline[HPDCACHE_SET_WIDTH +: HPDCACHE_TAG_WIDTH];;
+                refill_way_q <= refill_victim_way_i;
+                refill_sid_q <= mshr_ack_src_id;
+                refill_tid_q <= mshr_ack_req_id;
+                refill_need_rsp_q <= mshr_ack_need_rsp;
+                refill_is_prefetch_q <= mshr_ack_is_prefetch;
+                refill_core_rsp_word_q <= mshr_ack_word;
+            end
+            refill_cnt_q <= refill_cnt_d;
         end
-        refill_cnt_q <= refill_cnt_d;
     end
     //  }}}
 

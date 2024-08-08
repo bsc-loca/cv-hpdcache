@@ -640,11 +640,15 @@ import hpdcache_pkg::*;
                 .data_o      (data_read_req_word)
             );
 
-            always_ff @(posedge clk_i)
+            always_ff @(posedge clk_i or negedge rst_ni)
             begin : data_req_read_word_ff
-                data_read_req_word_index_q <=
-                        data_req_read_word_i[HPDCACHE_REQ_WORD_INDEX_WIDTH +:
-                                             $clog2(HPDCACHE_DATA_REQ_RATIO)];
+                if (!rst_ni) begin
+                    data_read_req_word_index_q <= '0;
+                end else begin
+                    data_read_req_word_index_q <=
+                            data_req_read_word_i[HPDCACHE_REQ_WORD_INDEX_WIDTH +:
+                                                $clog2(HPDCACHE_DATA_REQ_RATIO)];
+                end
             end
         end
 
@@ -668,9 +672,11 @@ import hpdcache_pkg::*;
 
     //  Delay the accessed set for checking the tag from the directory in the
     //  next cycle (hit logic)
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : req_read_ff
-        if (dir_match_i || dir_amo_match_i || dir_cmo_check_i || dir_inval_check_i) begin
+        if (!rst_ni) begin
+            dir_req_set_q <= '0;
+        end else if (dir_match_i || dir_amo_match_i || dir_cmo_check_i || dir_inval_check_i) begin
             dir_req_set_q <= dir_req_set_d;
         end
     end

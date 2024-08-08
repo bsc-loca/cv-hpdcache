@@ -637,7 +637,11 @@ module hpdcache_wbuf
 
     //  Internal state assignment
     //  {{{
-    always_ff @(posedge clk_i) wbuf_data_q <= wbuf_data_d;
+    always_ff @(posedge clk_i or negedge rst_ni)
+    begin : wbuf_data_ff
+        if (!rst_ni) wbuf_data_q <= '0;
+        else wbuf_data_q <= wbuf_data_d;
+    end
 
     always_ff @(posedge clk_i or negedge rst_ni)
     begin : wbuf_state_ff

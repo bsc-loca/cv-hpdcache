@@ -512,9 +512,11 @@ import hpdcache_pkg::*;
 
     //  Pipeline stage 1 registers
     //  {{{
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : st1_req_payload_ff
-        if (core_req_ready_o | st0_rtab_pop_try_ready) begin
+        if (!rst_ni) begin
+            st1_req_q <= '0;
+        end else if (core_req_ready_o | st0_rtab_pop_try_ready) begin
             st1_req_q <= st0_req;
         end
     end
@@ -540,9 +542,14 @@ import hpdcache_pkg::*;
 
     //  Pipeline stage 2 registers
     //  {{{
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : st2_req_payload_ff
-        if (st2_req_we) begin
+        if (!rst_ni) begin
+            st2_req_need_rsp_q <= '0;
+            st2_req_addr_q     <= '0;
+            st2_req_sid_q      <= '0;
+            st2_req_tid_q      <= '0;
+        end else if (st2_req_we) begin
             st2_req_need_rsp_q <= st1_req.need_rsp;
             st2_req_addr_q     <= st1_req_addr;
             st2_req_sid_q      <= st1_req.sid;
