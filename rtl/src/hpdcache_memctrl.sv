@@ -51,6 +51,9 @@ import hpdcache_pkg::*;
     //  Ports
     //  {{{
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input wire [27:0] uhdusplr_mem_ctrl,
+    `endif
     //      Global clock and reset signals
     //      {{{
     input  logic                                clk_i,
@@ -371,6 +374,9 @@ import hpdcache_pkg::*;
                 .DATA_SIZE (HPDCACHE_DIR_RAM_WIDTH),
                 .ADDR_SIZE (HPDCACHE_DIR_RAM_ADDR_WIDTH)
             ) dir_sram (
+                `ifdef INTEL_PHYSICAL_MEM_CTRL
+                .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+                `endif
                 .clk       (clk_i),
                 .rst_n     (rst_ni),
                 .cs        (dir_cs[dir_w]),
@@ -876,7 +882,7 @@ import hpdcache_pkg::*;
 
     //  Delay the accessed set for checking the tag from the directory in the
     //  next cycle (hit logic)
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : req_read_ff
         if (dir_match_i || dir_amo_match_i || dir_cmo_check_nline_i || dir_inval_check_i) begin
             dir_req_set_q <= dir_addr;

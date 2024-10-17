@@ -18,16 +18,19 @@
  *  under the License.
  */
 /*
- *  Authors       : Cesar Fuguet
+ *  Authors       : Noelia Oliete, Cesar Fuguet
  *  Creation Date : April, 2023
- *  Description   : Generic parameters package for the HPDcache. All parameters
- *                  can be overriden by Verilog preprocessor definitions.
+ *  Description   : Parameters package for the HPDcache, tuned for Cinco-Ranch+OpenPiton.
+ *                  All parameters can be overriden by Verilog preprocessor definitions.
  *  History       :
  */
-`ifdef PITON_ARIANE
-  `include "l15.tmp.h"
-  `include "define.tmp.h"
+
+
+`ifdef PITON_ARIANE_HPDC
+`include "l15.tmp.h"
+`include "define.tmp.h"
 `endif
+
 package hpdcache_params_pkg;
     //  Definition of global constants for the HPDcache data and directory
     //  {{{
@@ -40,13 +43,8 @@ package hpdcache_params_pkg;
     `ifndef CONF_HPDCACHE_SETS
         `define CONF_HPDCACHE_SETS 128
     `endif
-
-    `ifdef PITON_ARIANE
-        `ifndef CONFIG_L1D_SIZE
-            localparam int unsigned PARAM_SETS = 128;
-        `else 
-            localparam int unsigned PARAM_SETS = (`CONFIG_L1D_SIZE/`CONFIG_L1D_ASSOCIATIVITY)/(`CONFIG_L1D_CACHELINE_WIDTH/8);
-        `endif
+    `ifdef PITON_ARIANE_HPDC
+        localparam int unsigned PARAM_SETS = (`CONFIG_L1D_SIZE/`CONFIG_L1D_ASSOCIATIVITY)/(`CONFIG_L1D_CACHELINE_WIDTH/8);
     `else
         localparam int unsigned PARAM_SETS = `CONF_HPDCACHE_SETS;
     `endif
@@ -55,15 +53,10 @@ package hpdcache_params_pkg;
     `ifndef CONF_HPDCACHE_WAYS
         `define CONF_HPDCACHE_WAYS 4
     `endif
-
-    `ifdef PITON_ARIANE
-        `ifndef CONFIG_L1D_ASSOCIATIVITY
-            localparam int unsigned PARAM_WAYS = 4;
-        `else
-            localparam int unsigned PARAM_WAYS = `CONFIG_L1D_ASSOCIATIVITY; 
-        `endif
-    `else 
-        localparam int unsigned PARAM_WAYS = `CONF_HPDCACHE_WAYS;
+    `ifdef PITON_ARIANE_HPDC
+        localparam int unsigned PARAM_WAYS = `CONFIG_L1D_ASSOCIATIVITY;
+    `else
+        localparam int unsigned PARAM_WAYS = 4;
     `endif
 
     //  HPDcache word width (bits)
@@ -77,7 +70,7 @@ package hpdcache_params_pkg;
         `define CONF_HPDCACHE_CL_WORDS 8
     `endif
 
-    `ifdef PITON_ARIANE
+    `ifdef PITON_ARIANE_HPDC
         localparam int unsigned PARAM_CL_WORDS = `CONFIG_L1D_CACHELINE_WIDTH/PARAM_WORD_WIDTH;
     `else
         localparam int unsigned PARAM_CL_WORDS = `CONF_HPDCACHE_CL_WORDS;
@@ -100,12 +93,6 @@ package hpdcache_params_pkg;
         `define CONF_HPDCACHE_REQ_SRC_ID_WIDTH 3
     `endif
     localparam int unsigned PARAM_REQ_SRC_ID_WIDTH = `CONF_HPDCACHE_REQ_SRC_ID_WIDTH;
-
-    //  HPDcache victim select
-    `ifndef CONF_HPDCACHE_VICTIM_SEL
-        `define CONF_HPDCACHE_VICTIM_SEL 1
-    `endif
-    localparam int unsigned PARAM_VICTIM_SEL = `CONF_HPDCACHE_VICTIM_SEL;
     //  }}}
 
     //  Definition of constants and types for HPDcache data memory
@@ -135,22 +122,20 @@ package hpdcache_params_pkg;
     `ifndef CONF_HPDCACHE_ACCESS_WORDS
         `define CONF_HPDCACHE_ACCESS_WORDS 4
     `endif
-
-    `ifdef PITON_ARIANE
-        localparam int unsigned PARAM_ACCESS_WORDS = PARAM_CL_WORDS; // Acces whole cache-line per cycle
+    `ifdef PITON_ARIANE_HPDC
+        localparam int unsigned PARAM_ACCESS_WORDS = PARAM_CL_WORDS; // Acces whole cache-line per cycle;
     `else
         localparam int unsigned PARAM_ACCESS_WORDS = `CONF_HPDCACHE_ACCESS_WORDS;
     `endif
-    //  }}}
 
+    //  }}}
     //  Definition of constants and types for the Miss Status Holding Register (MSHR)
     //  {{{
     //  HPDcache MSHR number of sets
     `ifndef CONF_HPDCACHE_MSHR_SETS
         `define CONF_HPDCACHE_MSHR_SETS 64
     `endif
-
-    `ifdef PITON_ARIANE
+    `ifdef PITON_ARIANE_HPDC
         localparam int unsigned PARAM_MSHR_SETS = (`L15_NUM_THREADS >> 1);
     `else
         localparam int unsigned PARAM_MSHR_SETS = `CONF_HPDCACHE_MSHR_SETS;
@@ -199,21 +184,21 @@ package hpdcache_params_pkg;
         `define CONF_HPDCACHE_REFILL_FIFO_DEPTH 32'd2
     `endif
     
-    `ifdef PITON_ARIANE
-         /* FIXME: Should we increase it even more? */
+    `ifdef PITON_ARIANE_HPDC
+        /* FIXME: Should we increase it even more? */
         localparam int PARAM_REFILL_FIFO_DEPTH = (PARAM_MSHR_SETS*PARAM_MSHR_WAYS) + 32'd10;
     `else
         localparam int PARAM_REFILL_FIFO_DEPTH = `CONF_HPDCACHE_REFILL_FIFO_DEPTH;
     `endif
+    
     //  }}}
-
     //  Definition of constants and types for the Write Buffer (WBUF)
     //  {{{
     //  HPDcache Write-Buffer number of entries in the directory
     `ifndef CONF_HPDCACHE_WBUF_DIR_ENTRIES
         `define CONF_HPDCACHE_WBUF_DIR_ENTRIES 16
     `endif
-    `ifdef PITON_ARIANE
+    `ifdef PITON_ARIANE_HPDC
         localparam int unsigned PARAM_WBUF_DIR_ENTRIES = 4;
     `else
         localparam int unsigned PARAM_WBUF_DIR_ENTRIES = `CONF_HPDCACHE_WBUF_DIR_ENTRIES;
@@ -230,7 +215,7 @@ package hpdcache_params_pkg;
         `define CONF_HPDCACHE_WBUF_WORDS PARAM_REQ_WORDS
     `endif
     
-    `ifdef PITON_ARIANE
+    `ifdef PITON_ARIANE_HPDC
         localparam int unsigned PARAM_WBUF_WORDS = 1;
     `else
         localparam int unsigned PARAM_WBUF_WORDS = `CONF_HPDCACHE_WBUF_WORDS;
@@ -241,6 +226,7 @@ package hpdcache_params_pkg;
         `define CONF_HPDCACHE_WBUF_TIMECNT_WIDTH 4
     `endif
     localparam int unsigned PARAM_WBUF_TIMECNT_WIDTH = `CONF_HPDCACHE_WBUF_TIMECNT_WIDTH;
+
     //  }}}
 
     //  HPDCACHE feedthrough FIFOs from the write-buffer to the NoC

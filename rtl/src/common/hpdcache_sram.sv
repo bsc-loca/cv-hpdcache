@@ -30,6 +30,9 @@ module hpdcache_sram
     parameter int unsigned DEPTH = 2**ADDR_SIZE
 )
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input  logic [27:0]           uhdusplr_mem_ctrl,
+    `endif
     input  logic                  clk,
     input  logic                  rst_n,
     input  logic                  cs,
@@ -39,18 +42,31 @@ module hpdcache_sram
     output logic [DATA_SIZE-1:0]  rdata
 );
 
-    hpdcache_sram_1rw #(
-        .ADDR_SIZE(ADDR_SIZE),
-        .DATA_SIZE(DATA_SIZE),
-        .DEPTH(DEPTH)
-    ) ram_i (
-        .clk,
-        .rst_n,
-        .cs,
-        .we,
-        .addr,
-        .wdata,
-        .rdata
+    sp_ram #(
+        .ADDR_WIDTH(ADDR_SIZE),
+        .DATA_WIDTH(DATA_SIZE),
+        `ifdef SRAM_IP
+        .INSTANTIATE_ASIC_MEMORY(1'b1),
+        `else
+        .INSTANTIATE_ASIC_MEMORY(1'b0),
+        `endif
+        .INIT_MEMORY_ON_RESET('0) // HPDC doesn't initialize any SRAM
+    ) sram (
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .INTEL_MEM_CTRL(uhdusplr_mem_ctrl),
+        `endif
+        .SR_ID('0),
+        .clk(clk),
+        .rst_n(rst_n),
+        .clk_en(cs),
+        .rdw_en(we),
+        .addr(addr),
+        .data_in(wdata),
+        .data_mask_in({DATA_SIZE{we}}),
+        .data_out(rdata),
+        .srams_rtap_data( /* Unconnected */ ),
+        .rtap_srams_bist_command('0),
+        .rtap_srams_bist_data('0)
     );
 
 endmodule : hpdcache_sram

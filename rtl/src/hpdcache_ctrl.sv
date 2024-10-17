@@ -66,6 +66,9 @@ import hpdcache_pkg::*;
     // Ports
     // {{{
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input  logic [27:0]           uhdusplr_mem_ctrl,
+    `endif
     input  logic                  clk_i,
     input  logic                  rst_ni,
 
@@ -741,9 +744,11 @@ import hpdcache_pkg::*;
 
     //  Pipeline stage 1 registers
     //  {{{
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : st1_req_payload_ff
-        if (core_req_ready_o | st0_rtab_pop_try_ready) begin
+        if (!rst_ni) begin
+            st1_req_q <= '0;
+        end else if (core_req_ready_o | st0_rtab_pop_try_ready) begin
             st1_req_q <= st0_req;
         end
     end
@@ -843,6 +848,10 @@ import hpdcache_pkg::*;
     ) hpdcache_memctrl_i(
         .clk_i,
         .rst_ni,
+
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+        `endif
 
         .ready_o                       (hpdcache_init_ready),
 

@@ -721,7 +721,7 @@ import hpdcache_pkg::*;
         end
     end
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : rtab_ff
         for (int i = 0; i < N; i++) begin
             //  Update the request array

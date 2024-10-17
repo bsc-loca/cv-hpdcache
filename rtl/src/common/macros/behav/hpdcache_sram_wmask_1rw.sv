@@ -40,6 +40,47 @@ module hpdcache_sram_wmask_1rw
     output logic [DATA_SIZE-1:0]  rdata
 );
 
+`ifdef SRAM_IP
+
+  generate
+    if(DEPTH >=4) begin
+      asic_sram_1p #(
+          .ADDR_WIDTH(ADDR_SIZE),
+          .DATA_WIDTH(DATA_SIZE)
+      ) sram (
+         .A(addr),
+         .DI(wdata),
+         .BW(wmask),
+         .CLK(clk),
+         .CE(cs),
+         .RDWEN(we),
+         .DO(rdata)
+      );
+    end
+    else begin
+      /*
+      *  Internal memory array declaration
+      */
+      typedef logic [DATA_SIZE-1:0] mem_t [DEPTH];
+      mem_t mem;
+
+      /*
+       *  Process to update or read the memory array
+       */
+      always_ff @(posedge clk)
+      begin : mem_update_ff
+        if (cs == 1'b1) begin
+          if (we == 1'b1) begin
+            mem[addr] <= (mem[addr] & ~wmask) | (wdata & wmask);
+          end
+          rdata <= mem[addr];
+        end
+      end : mem_update_ff
+    end
+  endgenerate
+
+`else
+
     /*
      *  Internal memory array declaration
      */
@@ -58,4 +99,6 @@ module hpdcache_sram_wmask_1rw
             rdata <= mem[addr];
         end
     end : mem_update_ff
+
+`endif
 endmodule : hpdcache_sram_wmask_1rw

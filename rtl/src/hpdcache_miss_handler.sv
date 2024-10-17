@@ -60,6 +60,9 @@ import hpdcache_pkg::*;
 //  Ports
 //  {{{
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input wire [27:0] uhdusplr_mem_ctrl,
+    `endif
     input  logic                  clk_i,
     input  logic                  rst_ni,
 
@@ -281,9 +284,12 @@ import hpdcache_pkg::*;
         assign mem_req_o.mem_req_id = '0;
     end
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : miss_req_fsm_internal_ff
-        if (mshr_alloc) begin
+        if (!rst_ni) begin
+            mshr_alloc_way_q <= '0;
+            mshr_alloc_nline_q <= '0;
+        end else if (mshr_alloc) begin
             mshr_alloc_way_q <= mshr_alloc_way_d;
             mshr_alloc_nline_q <= mshr_alloc_nline_i;
         end
@@ -652,7 +658,7 @@ import hpdcache_pkg::*;
         end
     end
 
-    always_ff @(posedge clk_i)
+    always_ff @(posedge clk_i or negedge rst_ni)
     begin : miss_resp_fsm_internal_ff
         if ((refill_fsm_q == REFILL_WRITE) && (refill_cnt_q == 0)) begin
             refill_set_q <= mshr_ack_cache_set;
@@ -665,7 +671,6 @@ import hpdcache_pkg::*;
             refill_wback_q <= mshr_ack_wback;
             refill_core_rsp_word_q <= mshr_ack_word;
         end
-        refill_cnt_q <= refill_cnt_d;
     end
     //  }}}
     //  }}}
@@ -688,6 +693,10 @@ import hpdcache_pkg::*;
     ) hpdcache_mshr_i(
         .clk_i,
         .rst_ni,
+
+        `ifdef INTEL_PHYSICAL_MEM_CTRL
+        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+        `endif
 
         .empty_o                  (mshr_empty),
         .full_o                   (mshr_full_o),
