@@ -129,6 +129,7 @@ module hpdcache_ctrl_pe
     output logic                   st1_rtab_mshr_hit_o,
     output logic                   st1_rtab_mshr_full_o,
     output logic                   st1_rtab_mshr_ready_o,
+    output logic                   st1_rtab_write_miss_o,
     output logic                   st1_rtab_wbuf_hit_o,
     output logic                   st1_rtab_wbuf_not_ready_o,
     output logic                   st1_rtab_dir_unavailable_o,
@@ -181,6 +182,7 @@ module hpdcache_ctrl_pe
 
     //   Configuration
     //   {{{
+    input  logic                   cfg_prefetch_updt_plru_i,
     input  logic                   cfg_default_wb_i,
     //   }}}
 
@@ -305,6 +307,7 @@ module hpdcache_ctrl_pe
         st1_rtab_mshr_hit_o                 = 1'b0;
         st1_rtab_mshr_full_o                = 1'b0;
         st1_rtab_mshr_ready_o               = 1'b0;
+        st1_rtab_write_miss_o               = 1'b0;
         st1_rtab_wbuf_hit_o                 = 1'b0;
         st1_rtab_wbuf_not_ready_o           = 1'b0;
         st1_rtab_dir_unavailable_o          = 1'b0;
@@ -607,7 +610,9 @@ module hpdcache_ctrl_pe
                                 st1_nop = st1_req_rtab_i & ~rtab_req_valid_i;
 
                                 //  Update victim selection for the accessed set
-                                st1_req_cachedir_updt_sel_victim_o = st1_req_is_load_i;
+                                st1_req_cachedir_updt_sel_victim_o =
+                                    ~st1_req_is_cmo_prefetch_i |
+                                     cfg_prefetch_updt_plru_i;
 
                                 //  Respond to the core (if needed)
                                 st1_rsp_valid_o = st1_req_need_rsp_i;
@@ -773,7 +778,7 @@ module hpdcache_ctrl_pe
 
                                     //  Put the request in the replay table
                                     st1_rtab_alloc = 1'b1;
-                                    st1_rtab_mshr_hit_o = 1'b1;
+                                    st1_rtab_write_miss_o = 1'b1;
 
                                     //  Performance event
                                     evt_cache_write_miss_o = 1'b1;
