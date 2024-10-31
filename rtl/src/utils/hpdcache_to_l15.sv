@@ -23,20 +23,19 @@
  *  Description   : L1.5, L1I and HPDC adapter
  *  History       :
  */
-module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ariane_pkg::*;
+module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
 //  Parameters
 //  {{{
 #(
-    parameter hpdcache_uint          NumPorts           = 6,
-    parameter [$clog2(NumPorts)-1:0] IcachePort         = 0, 
-    parameter [$clog2(NumPorts)-1:0] DcachePort         = 1, 
-    parameter [$clog2(NumPorts)-1:0] DcacheWbufPort     = 2, 
-    parameter [$clog2(NumPorts)-1:0] DcacheUncReadPort  = 3, 
-    parameter [$clog2(NumPorts)-1:0] DcacheUncWritePort = 4, 
-    parameter [$clog2(NumPorts)-1:0] DcacheAmoPort      = 5,
+    parameter hpdcache_uint          NumPorts        = 4,
+    parameter [$clog2(NumPorts)-1:0] IcachePort      = 0,
+    parameter [$clog2(NumPorts)-1:0] DcacheReadPort  = 1,
+    parameter [$clog2(NumPorts)-1:0] DcacheWritePort = 2,
+    parameter [$clog2(NumPorts)-1:0] DcacheAmoPort   = 3,
 
     parameter bit              SwapEndianess = 1,
     parameter hpdcache_uint    HPDcacheMemDataWidth = 128,
+    parameter int unsigned     PHYSICAL_ADDRESS_WIDTH = 40,
     parameter bit              WriteByteMaskEnabled = 0,
     // Default value is compatible with CVA6
     parameter logic [2:0]      IcacheNoCachableSize = `MSG_DATA_SIZE_4B,
@@ -140,7 +139,24 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
     typedef hpdcache_mem_id_t [NUM_THREAD_IDS-1:0] hpdc_thid_l15et_t;
     typedef req_portid_t      [NUM_THREAD_IDS-1:0] hpdc_pid_l15et_t;
     typedef logic             [wt_cache_pkg::L15_TID_WIDTH-1:0] free_thid_t;
-    
+
+    // AMO enum for communicating to L1.5
+    typedef enum logic [3:0] {
+        AMO_NONE =4'b0000,
+        AMO_LR   =4'b0001,
+        AMO_SC   =4'b0010,
+        AMO_SWAP =4'b0011,
+        AMO_ADD  =4'b0100,
+        AMO_AND  =4'b0101,
+        AMO_OR   =4'b0110,
+        AMO_XOR  =4'b0111,
+        AMO_MAX  =4'b1000,
+        AMO_MAXU =4'b1001,
+        AMO_MIN  =4'b1010,
+        AMO_MINU =4'b1011,
+        AMO_CAS1 =4'b1100, // unused, not part of riscv spec, but provided in OpenPiton
+        AMO_CAS2 =4'b1101  // unused, not part of riscv spec, but provided in OpenPiton
+    } amo_t;
 
     // }}}
 
@@ -150,13 +166,10 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
     logic                                       req_is_ifill;
     logic                                       req_is_read;
     logic                                       req_is_write;
-    logic                                       req_is_unc_read;
-    logic                                       req_is_unc_write;
     logic                                       req_is_atomic;
-    ariane_pkg::amo_t                           req_amo_op_type;
+    amo_t                                       req_amo_op_type;
     // Data & Byte mask sended by the request
     logic [HPDcacheMemDataWidth-1:0]                  req_wdata;
-    logic [(hpdcache_pkg::HPDCACHE_WORD_WIDTH/8)-1:0] req_wbe;
     // FSM State 
     thread_id_fsm_t                             th_state_q, th_state_d;
     // HPDC Req ID
@@ -182,16 +195,16 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
        L15_REQ_DATA_BYTE_NUM        = `L15_REQ_DATA_WIDTH/8,
        OFFSET_WIDTH = $clog2(L15_REQ_DATA_BYTE_NUM),
        REGION_WIDTH = OFFSET_WIDTH-6;
-    wire [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_array  [0 : WORD_NUM-1];
+    logic [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_array  [0 : WORD_NUM-1];
     genvar k;
     generate 
     for(k=0;k<WORD_NUM;k++) begin : sep2
        assign w_be_array [k] = req_data_i.mem_req_w_be [(k+1)*L15_REQ_DATA_BYTE_NUM-1 : k*L15_REQ_DATA_BYTE_NUM];
     end
     endgenerate    
-    reg [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_reduction_or;
-    reg [OFFSET_WIDTH-1 : 0] first_one_loc;
-    logic [$clog2(HPDcacheMemDataWidth/8)-1:0]  first_one_pos,num_ones;
+    logic [L15_REQ_DATA_BYTE_NUM-1 : 0] w_be_reduction_or;
+    logic [OFFSET_WIDTH-1 : 0] first_one_loc;
+    logic [$clog2(HPDcacheMemDataWidth/8):0]  first_one_pos,num_ones;
     // L1.5 Response data
     logic [wt_cache_pkg::L1_MAX_DATA_PACKETS_BITS_WIDTH-1:0] resp_data;
     // Invalidations
@@ -216,12 +229,13 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
                                                                             l15_rtrn_i.l15_val & resp_ready_i,                                          // Response/ICACHE Invalidation
                                                 // Request type
            l15_req_o.l15_rqtype               = (req_is_ifill) ? L15_IMISS_RQ :
-                                                (req_is_read  || req_is_unc_read)  ? L15_LOAD_RQ : 
-                                                (req_is_write || req_is_unc_write) ? L15_STORE_RQ : L15_ATOMIC_RQ,
+                                                (req_is_read)  ? L15_LOAD_RQ  :
+                                                (req_is_write) ? L15_STORE_RQ : L15_ATOMIC_RQ,
            l15_req_o.l15_nc                   = ~req_i.mem_req_cacheable,
                                                 // IMiss Unch: 4B Cach: 32B cacheline; Load/Store/AMO Max 16B cacheline (other possible sizes: 1,2,4,8B)
            l15_req_o.l15_size                 = (req_is_ifill)                              ? ((req_i.mem_req_cacheable) ? IcacheCachableSize : IcacheNoCachableSize) : // IMiss
-                                                (req_is_write  && ~WriteByteMaskEnabled)    ? req_wt_size :  // Store (1/2/4/8) 
+                                                (req_is_write  && ~WriteByteMaskEnabled)    ? req_wt_size :  // Store (1/2/4/8)
+                                                (req_is_atomic && req_i.mem_req_atomic==HPDCACHE_MEM_ATOMIC_LDEX) ? 3'b111 :
                                                 req_i.mem_req_size + 1'b1, // Load & Unc. Load &  Unc. Store (1/2/4/8) & AMO (4/8) & Store (8)
            l15_req_o.l15_threadid             = req_thid, 
                                                 // If WBME=0, the store req. hast to be aligned to its size (by default its aligned to WBUF entry size). 
@@ -243,7 +257,7 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
     always_comb 
     begin : swap_
         if (SwapEndianess) begin : swap_comb // Openpiton is big endian
-            for (int unsigned i=0;i < L15_REQ_DATA_BYTE_NUM; i++) begin            
+            for (int unsigned i=0;i < L15_REQ_DATA_BYTE_NUM; i++) begin
                l15_req_o.l15_be   [L15_REQ_DATA_BYTE_NUM-i-1]   = w_be_reduction_or[i]; 
               // l15_req_o.l15_data [(i*8) +: 8] = req_wdata[`L15_REQ_DATA_WIDTH-(i*8)-1 -: 8];  
                req_wdata_swaped [(i*8) +: 8] = req_wdata[`L15_REQ_DATA_WIDTH-(i*8)-1 -: 8];                
@@ -253,17 +267,15 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
             end
         end else begin : noswap_comb
                 l15_req_o.l15_data = req_wdata;
-                l15_req_o.l15_be   = w_be_reduction_or;                
+                l15_req_o.l15_be   = w_be_reduction_or;
         end
     end 
 
-    // Type of request based on the request mux index port (req_index_i: IcachePort->IMISS, DcachePort->Read DcacheWbufPort-> Write DcacheUncReadPort-> Un.Read DcacheUncWritePort-> Un. Write/AMO)
+    // Type of request based on the request mux index port (req_index_i: IcachePort->IMISS, DcacheReadPort->Read DcacheWritePort-> Write/AMO)
     assign req_is_ifill                       = req_index_i[IcachePort],
-           req_is_read                        = req_index_i[DcachePort]         & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_READ),  // Load 
-           req_is_write                       = req_index_i[DcacheWbufPort]     & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_WRITE), // Store
-           req_is_unc_read                    = req_index_i[DcacheUncReadPort]  & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_READ),  // Unc. Load  
-           req_is_unc_write                   = req_index_i[DcacheUncWritePort] & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_WRITE), // Unc. Store 
-           req_is_atomic                      = req_index_i[DcacheUncWritePort] & (req_i.mem_req_command==hpdcache_pkg::HPDCACHE_MEM_ATOMIC);// AMO
+           req_is_read                        = req_index_i[DcacheReadPort]  & (req_i.mem_req_command==HPDCACHE_MEM_READ),  // Load 
+           req_is_write                       = req_index_i[DcacheWritePort] & (req_i.mem_req_command==HPDCACHE_MEM_WRITE), // Store
+           req_is_atomic                      = req_index_i[DcacheWritePort] & (req_i.mem_req_command==HPDCACHE_MEM_ATOMIC); // AMO
 
     // Data sended by the request
     // If the request is a AMO_CLR, its translated as a AMO_AND. Therefore, the data sended has to be inverted
@@ -438,9 +450,8 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
         for (int unsigned i = 0; i < WORD_NUM; i++) begin
             w_be_reduction_or |= w_be_array[i];
             end
-    end   
-           
-           
+    end
+
     always_comb
     begin: lzc_comb3
         first_one_loc = '0;
@@ -448,12 +459,11 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
             if (w_be_reduction_or[i]) begin
                 first_one_loc = i;
                 break;
-            end 
-           
-        end
             end
-            
-    assign req_wt_address  = {req_i.mem_req_addr[HPDCACHE_PA_WIDTH-1:OFFSET_WIDTH],first_one_loc};
+        end
+    end
+
+    assign req_wt_address  = {req_i.mem_req_addr[PHYSICAL_ADDRESS_WIDTH-1:OFFSET_WIDTH],first_one_loc};
 
     always_comb 
     begin:rst_size_comb
@@ -492,18 +502,18 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
     always_comb 
     begin:atomic_req_op_type_comb
         unique case (req_i.mem_req_atomic)
-            HPDCACHE_MEM_ATOMIC_ADD:  req_amo_op_type = ariane_pkg::AMO_ADD;
-            HPDCACHE_MEM_ATOMIC_CLR:  req_amo_op_type = ariane_pkg::AMO_AND;
-            HPDCACHE_MEM_ATOMIC_SET:  req_amo_op_type = ariane_pkg::AMO_OR;
-            HPDCACHE_MEM_ATOMIC_EOR:  req_amo_op_type = ariane_pkg::AMO_XOR;
-            HPDCACHE_MEM_ATOMIC_SMAX: req_amo_op_type = ariane_pkg::AMO_MAX;
-            HPDCACHE_MEM_ATOMIC_SMIN: req_amo_op_type = ariane_pkg::AMO_MIN;
-            HPDCACHE_MEM_ATOMIC_UMAX: req_amo_op_type = ariane_pkg::AMO_MAXU;
-            HPDCACHE_MEM_ATOMIC_UMIN: req_amo_op_type = ariane_pkg::AMO_MINU;
-            HPDCACHE_MEM_ATOMIC_SWAP: req_amo_op_type = ariane_pkg::AMO_SWAP;
-            HPDCACHE_MEM_ATOMIC_LDEX: req_amo_op_type = ariane_pkg::AMO_LR;
-            HPDCACHE_MEM_ATOMIC_STEX: req_amo_op_type = ariane_pkg::AMO_SC;
-            default:                  req_amo_op_type = ariane_pkg::AMO_NONE;
+            HPDCACHE_MEM_ATOMIC_ADD:  req_amo_op_type = AMO_ADD;
+            HPDCACHE_MEM_ATOMIC_CLR:  req_amo_op_type = AMO_AND;
+            HPDCACHE_MEM_ATOMIC_SET:  req_amo_op_type = AMO_OR;
+            HPDCACHE_MEM_ATOMIC_EOR:  req_amo_op_type = AMO_XOR;
+            HPDCACHE_MEM_ATOMIC_SMAX: req_amo_op_type = AMO_MAX;
+            HPDCACHE_MEM_ATOMIC_SMIN: req_amo_op_type = AMO_MIN;
+            HPDCACHE_MEM_ATOMIC_UMAX: req_amo_op_type = AMO_MAXU;
+            HPDCACHE_MEM_ATOMIC_UMIN: req_amo_op_type = AMO_MINU;
+            HPDCACHE_MEM_ATOMIC_SWAP: req_amo_op_type = AMO_SWAP;
+            HPDCACHE_MEM_ATOMIC_LDEX: req_amo_op_type = AMO_LR;
+            HPDCACHE_MEM_ATOMIC_STEX: req_amo_op_type = AMO_SC;
+            default:                  req_amo_op_type = AMO_NONE;
         endcase
     end
         // }}}
@@ -529,9 +539,4 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
         // }}}
     // }}}
 
-    //  Assertions
-    //  {{{
-    initial assert (NUM_THREAD_IDS == (hpdcache_pkg::HPDCACHE_MSHR_SETS * hpdcache_pkg::HPDCACHE_MSHR_WAYS)) else
-            $error("The number of thread ids should be equal to the number of MSHRs of the D$");
-    //  }}}
 endmodule
