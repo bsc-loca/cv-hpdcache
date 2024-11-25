@@ -671,6 +671,7 @@ import hpdcache_pkg::*;
             refill_wback_q <= mshr_ack_wback;
             refill_core_rsp_word_q <= mshr_ack_word;
         end
+        refill_cnt_q <= refill_cnt_d;
     end
     //  }}}
     //  }}}
