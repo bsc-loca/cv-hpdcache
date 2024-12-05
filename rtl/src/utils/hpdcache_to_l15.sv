@@ -23,6 +23,10 @@
  *  Description   : L1.5, L1I and HPDC adapter
  *  History       :
  */
+
+`include "l15.tmp.h"
+`include "define.tmp.h"
+
 module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
 //  Parameters
 //  {{{
