@@ -884,11 +884,16 @@ import hpdcache_pkg::*;
     //  next cycle (hit logic)
     always_ff @(posedge clk_i or negedge rst_ni)
     begin : req_read_ff
-        if (dir_match_i || dir_amo_match_i || dir_cmo_check_nline_i || dir_inval_check_i) begin
-            dir_req_set_q <= dir_addr;
-        end
-        if (dir_cmo_check_entry_i) begin
-            dir_req_way_q <= dir_cmo_check_entry_way_i;
+        if (!rst_ni) begin
+            dir_req_set_q <= '0;
+            dir_req_way_q <= '0;
+        end else begin
+            if (dir_match_i || dir_amo_match_i || dir_cmo_check_nline_i || dir_inval_check_i) begin
+                dir_req_set_q <= dir_addr;
+            end
+            if (dir_cmo_check_entry_i) begin
+                dir_req_way_q <= dir_cmo_check_entry_way_i;
+            end
         end
     end
     //  }}}
