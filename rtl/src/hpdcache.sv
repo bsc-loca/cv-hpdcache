@@ -280,26 +280,39 @@ import hpdcache_pkg::*;
     logic                  cmo_ready;
     hpdcache_cmoh_op_t     cmo_req_op;
     hpdcache_req_addr_t    cmo_req_addr;
+    hpdcache_req_sid_t     cmo_req_sid;
+    hpdcache_req_tid_t     cmo_req_tid;
     hpdcache_req_data_t    cmo_req_wdata;
+    logic                  cmo_req_need_rsp;
     logic                  cmo_wbuf_flush_all;
     logic                  cmo_dir_check_nline;
     hpdcache_set_t         cmo_dir_check_nline_set;
     hpdcache_tag_t         cmo_dir_check_nline_tag;
     hpdcache_way_vector_t  cmo_dir_check_nline_hit_way;
+    logic                  cmo_dir_check_nline_wback;
     logic                  cmo_dir_check_nline_dirty;
     logic                  cmo_dir_check_entry;
     hpdcache_set_t         cmo_dir_check_entry_set;
     hpdcache_way_vector_t  cmo_dir_check_entry_way;
     logic                  cmo_dir_check_entry_valid;
+    logic                  cmo_dir_check_entry_wback;
     logic                  cmo_dir_check_entry_dirty;
     hpdcache_tag_t         cmo_dir_check_entry_tag;
-    logic                  cmo_dir_inval;
-    hpdcache_set_t         cmo_dir_inval_set;
-    hpdcache_way_vector_t  cmo_dir_inval_way;
+    logic                  cmo_dir_updt;
+    hpdcache_set_t         cmo_dir_updt_set;
+    hpdcache_way_vector_t  cmo_dir_updt_way;
+    logic                  cmo_dir_updt_valid;
+    logic                  cmo_dir_updt_wback;
+    logic                  cmo_dir_updt_dirty;
+    logic                  cmo_dir_updt_fetch;
+    hpdcache_tag_t         cmo_dir_updt_tag;
     logic                  cmo_wait;
     logic                  cmo_flush_alloc;
     hpdcache_nline_t       cmo_flush_alloc_nline;
     hpdcache_way_vector_t  cmo_flush_alloc_way;
+    logic                  cmo_core_rsp_ready;
+    logic                  cmo_core_rsp_valid;
+    hpdcache_rsp_t         cmo_core_rsp;
 
     logic                  flush_empty;
     logic                  flush_busy;
@@ -592,21 +605,34 @@ import hpdcache_pkg::*;
         .cmo_req_op_o                       (cmo_req_op),
         .cmo_req_addr_o                     (cmo_req_addr),
         .cmo_req_wdata_o                    (cmo_req_wdata),
+        .cmo_req_sid_o                      (cmo_req_sid),
+        .cmo_req_tid_o                      (cmo_req_tid),
+        .cmo_req_need_rsp_o                 (cmo_req_need_rsp),
         .cmo_wbuf_flush_all_i               (cmo_wbuf_flush_all),
         .cmo_dir_check_nline_i              (cmo_dir_check_nline),
         .cmo_dir_check_nline_set_i          (cmo_dir_check_nline_set),
         .cmo_dir_check_nline_tag_i          (cmo_dir_check_nline_tag),
         .cmo_dir_check_nline_hit_way_o      (cmo_dir_check_nline_hit_way),
+        .cmo_dir_check_nline_wback_o        (cmo_dir_check_nline_wback),
         .cmo_dir_check_nline_dirty_o        (cmo_dir_check_nline_dirty),
         .cmo_dir_check_entry_i              (cmo_dir_check_entry),
         .cmo_dir_check_entry_set_i          (cmo_dir_check_entry_set),
         .cmo_dir_check_entry_way_i          (cmo_dir_check_entry_way),
         .cmo_dir_check_entry_valid_o        (cmo_dir_check_entry_valid),
+        .cmo_dir_check_entry_wback_o        (cmo_dir_check_entry_wback),
         .cmo_dir_check_entry_dirty_o        (cmo_dir_check_entry_dirty),
         .cmo_dir_check_entry_tag_o          (cmo_dir_check_entry_tag),
-        .cmo_dir_inval_i                    (cmo_dir_inval),
-        .cmo_dir_inval_set_i                (cmo_dir_inval_set),
-        .cmo_dir_inval_way_i                (cmo_dir_inval_way),
+        .cmo_dir_updt_i                     (cmo_dir_updt),
+        .cmo_dir_updt_set_i                 (cmo_dir_updt_set),
+        .cmo_dir_updt_way_i                 (cmo_dir_updt_way),
+        .cmo_dir_updt_valid_i               (cmo_dir_updt_valid),
+        .cmo_dir_updt_wback_i               (cmo_dir_updt_wback),
+        .cmo_dir_updt_dirty_i               (cmo_dir_updt_dirty),
+        .cmo_dir_updt_fetch_i               (cmo_dir_updt_fetch),
+        .cmo_dir_updt_tag_i                 (cmo_dir_updt_tag),
+        .cmo_core_rsp_ready_o               (cmo_core_rsp_ready),
+        .cmo_core_rsp_valid_i               (cmo_core_rsp_valid),
+        .cmo_core_rsp_i                     (cmo_core_rsp),
 
         .rtab_empty_o                       (rtab_empty),
         .ctrl_empty_o                       (ctrl_empty),
@@ -889,16 +915,19 @@ import hpdcache_pkg::*;
     //  CMO Request Handler
     //  {{{
     hpdcache_cmo #(
-      .HPDcacheCfg                     (HPDcacheCfg),
+        .HPDcacheCfg                   (HPDcacheCfg),
 
-      .hpdcache_nline_t                (hpdcache_nline_t),
-      .hpdcache_tag_t                  (hpdcache_tag_t),
-      .hpdcache_set_t                  (hpdcache_set_t),
-      .hpdcache_data_word_t            (hpdcache_data_word_t),
-      .hpdcache_way_vector_t           (hpdcache_way_vector_t),
+        .hpdcache_nline_t              (hpdcache_nline_t),
+        .hpdcache_tag_t                (hpdcache_tag_t),
+        .hpdcache_set_t                (hpdcache_set_t),
+        .hpdcache_data_word_t          (hpdcache_data_word_t),
+        .hpdcache_way_vector_t         (hpdcache_way_vector_t),
 
-      .hpdcache_req_addr_t             (hpdcache_req_addr_t),
-      .hpdcache_req_data_t             (hpdcache_req_data_t)
+        .hpdcache_rsp_t                (hpdcache_rsp_t),
+        .hpdcache_req_addr_t           (hpdcache_req_addr_t),
+        .hpdcache_req_tid_t            (hpdcache_req_tid_t),
+        .hpdcache_req_sid_t            (hpdcache_req_sid_t),
+        .hpdcache_req_data_t           (hpdcache_req_data_t)
     ) hpdcache_cmo_i(
         .clk_i,
         .rst_ni,
@@ -913,7 +942,14 @@ import hpdcache_pkg::*;
         .req_op_i                      (cmo_req_op),
         .req_addr_i                    (cmo_req_addr),
         .req_wdata_i                   (cmo_req_wdata),
+        .req_sid_i                     (cmo_req_sid),
+        .req_tid_i                     (cmo_req_tid),
+        .req_need_rsp_i                (cmo_req_need_rsp),
         .req_wait_o                    (cmo_wait),
+
+        .core_rsp_ready_i              (cmo_core_rsp_ready),
+        .core_rsp_valid_o              (cmo_core_rsp_valid),
+        .core_rsp_o                    (cmo_core_rsp),
 
         .wbuf_flush_all_o              (cmo_wbuf_flush_all),
 
@@ -921,18 +957,25 @@ import hpdcache_pkg::*;
         .dir_check_nline_set_o         (cmo_dir_check_nline_set),
         .dir_check_nline_tag_o         (cmo_dir_check_nline_tag),
         .dir_check_nline_hit_way_i     (cmo_dir_check_nline_hit_way),
+        .dir_check_nline_wback_i       (cmo_dir_check_nline_wback),
         .dir_check_nline_dirty_i       (cmo_dir_check_nline_dirty),
 
         .dir_check_entry_o             (cmo_dir_check_entry),
         .dir_check_entry_set_o         (cmo_dir_check_entry_set),
         .dir_check_entry_way_o         (cmo_dir_check_entry_way),
         .dir_check_entry_valid_i       (cmo_dir_check_entry_valid),
+        .dir_check_entry_wback_i       (cmo_dir_check_entry_wback),
         .dir_check_entry_dirty_i       (cmo_dir_check_entry_dirty),
         .dir_check_entry_tag_i         (cmo_dir_check_entry_tag),
 
-        .dir_inval_o                   (cmo_dir_inval),
-        .dir_inval_set_o               (cmo_dir_inval_set),
-        .dir_inval_way_o               (cmo_dir_inval_way),
+        .dir_updt_o                    (cmo_dir_updt),
+        .dir_updt_set_o                (cmo_dir_updt_set),
+        .dir_updt_way_o                (cmo_dir_updt_way),
+        .dir_updt_valid_o              (cmo_dir_updt_valid),
+        .dir_updt_wback_o              (cmo_dir_updt_wback),
+        .dir_updt_dirty_o              (cmo_dir_updt_dirty),
+        .dir_updt_fetch_o              (cmo_dir_updt_fetch),
+        .dir_updt_tag_o                (cmo_dir_updt_tag),
 
         .flush_empty_i                 (flush_empty),
         .flush_alloc_o                 (cmo_flush_alloc),
@@ -1221,33 +1264,40 @@ import hpdcache_pkg::*;
     //  Assertions
     //  {{{
 `ifndef HPDCACHE_ASSERT_OFF
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
         ctrl_flush_alloc |-> !cmo_flush_alloc) else
             $error("Unsupported concurrent flush from ctrl and cmo");
 
-    initial begin
-        word_width_assert:
-            assert (HPDcacheCfg.u.wordWidth inside {32, 64}) else
-                $fatal("word width shall be 32 or 64");
-        req_access_width_assert:
-            assert (HPDcacheCfg.u.reqWords <= HPDcacheCfg.u.accessWords) else
-                $fatal("req data width shall be l.e. to cache access width");
-        refill_access_width_assert:
-            assert (HPDcacheCfg.u.clWords >= HPDcacheCfg.u.accessWords) else
-                $fatal("cache access width shall be l.e. to cache-line width");
-        mem_width_assert:
-            assert (HPDcacheCfg.u.memDataWidth >= HPDcacheCfg.reqDataWidth) else
-                $fatal("memory interface data width shall be g.e. to req data width");
-        miss_mem_id_width_assert:
-            assert (HPDcacheCfg.u.memIdWidth >=
-                ($clog2(HPDcacheCfg.u.mshrWays * HPDcacheCfg.u.mshrSets) + 1)) else
-                $fatal("insufficient ID bits on the mem interface to transport misses");
-        wbuf_mem_id_width_assert:
-            assert (HPDcacheCfg.u.memIdWidth >= (HPDcacheCfg.wbufDirPtrWidth + 1)) else
-                $fatal("insufficient ID bits on the mem interface to transport writes");
-        wt_or_wb_assert:
-            assert (HPDcacheCfg.u.wtEn || HPDcacheCfg.u.wbEn) else
-                $fatal("the cache shall be configured to support WT, WB or both");
+    if (!(HPDcacheCfg.u.wordWidth inside {32, 64})) begin : gen_word_width_assertion
+        $fatal(1, "word width shall be 32 or 64");
+    end
+    if (HPDcacheCfg.u.reqWords > HPDcacheCfg.u.accessWords) begin : gen_req_data_width_assertion
+        $fatal(1, "req data width shall be l.e. to cache access width");
+    end
+    if (HPDcacheCfg.u.clWords < HPDcacheCfg.u.accessWords) begin : gen_access_width_assertion
+        $fatal(1, "cache access width shall be l.e. to cache-line width");
+    end
+    if (HPDcacheCfg.u.clWords <= 1) begin : gen_cacheline_words_assertion
+        $fatal(1, "cacheline words shall be greater than 1");
+    end
+    if (HPDcacheCfg.u.memDataWidth < HPDcacheCfg.reqDataWidth) begin : gen_mem_data_width_assertion
+        $fatal(1, "memory interface data width shall be g.e. to req data width");
+    end
+    if ((2**HPDcacheCfg.u.memIdWidth - 1) < (HPDcacheCfg.u.mshrWays * HPDcacheCfg.u.mshrSets))
+    begin : gen_mem_id_mshr_width_assertion
+        $fatal(1, "insufficient ID bits on the mem interface to transport reads");
+    end
+    if (HPDcacheCfg.u.wtEn && (2**(HPDcacheCfg.u.memIdWidth - 1) < HPDcacheCfg.u.wbufDirEntries))
+    begin : gen_mem_id_wbuf_width_assertion
+        $fatal(1, "insufficient ID bits on the mem interface to transport writes");
+    end
+    if (HPDcacheCfg.u.wbEn &&
+        (2**(HPDcacheCfg.u.memIdWidth - 1) < (HPDcacheCfg.u.flushEntries + 1)))
+    begin : gen_mem_id_flush_width_assertion
+        $fatal(1, "insufficient ID bits on the mem interface to transport flushes");
+    end
+    if (!HPDcacheCfg.u.wtEn && !HPDcacheCfg.u.wbEn) begin : gen_write_policy_assertion
+        $fatal(1, "the cache shall be configured to support WT, WB or both");
     end
 `endif
     // }}}
