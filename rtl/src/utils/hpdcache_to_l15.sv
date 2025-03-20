@@ -142,6 +142,7 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
     // L15_TIDs entry table to save the HPDC threadids and portids
     typedef hpdcache_mem_id_t [NUM_THREAD_IDS-1:0] hpdc_thid_l15et_t;
     typedef req_portid_t      [NUM_THREAD_IDS-1:0] hpdc_pid_l15et_t;
+    typedef logic             [NUM_THREAD_IDS-1:0] hpdc_sc_l15et_t;
     typedef logic             [wt_cache_pkg::L15_TID_WIDTH-1:0] free_thid_t;
 
     // AMO enum for communicating to L1.5
@@ -180,6 +181,8 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
     hpdc_thid_l15et_t                           hpdc_tid_q, hpdc_tid_d;
     // HPDC Req Port ID
     hpdc_pid_l15et_t                            hpdc_pid_q, hpdc_pid_d;
+    // HPDC Is Store Conditional
+    hpdc_sc_l15et_t                             hpdc_sc_q, hpdc_sc_d;
     // Initial value of the free list
     free_thid_t [NUM_THREAD_IDS-1:0]            free_thid_list;
     // Thread id available to send a request to L1.5
@@ -323,6 +326,7 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
         th_state_d = th_state_q;
         hpdc_tid_d = hpdc_tid_q;
         hpdc_pid_d = hpdc_pid_q;
+        hpdc_sc_d = hpdc_sc_q;
         req_valid  = '0;
         req_ready  = '0;
         unique case (th_state_q)
@@ -334,6 +338,8 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
                         if (l15_rtrn_i.l15_ack) begin
                             hpdc_tid_d[req_thid]  = req_i.mem_req_id;   // Save the request id
                             hpdc_pid_d[req_thid]  = req_pid_i;          // Save the port id
+                            hpdc_sc_d[req_thid]   = req_i.mem_req_command == HPDCACHE_MEM_ATOMIC
+                                                    && req_i.mem_req_atomic == HPDCACHE_MEM_ATOMIC_STEX;
                             req_ready             = '1;
                             th_state_d            = IDLE;
                         end else begin
@@ -353,6 +359,8 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
                     if (l15_rtrn_i.l15_ack) begin 
                         hpdc_tid_d[req_thid]  = req_i.mem_req_id;   // Save the request id
                         hpdc_pid_d[req_thid]  = req_pid_i;          // Save the port id
+                        hpdc_sc_d[req_thid]   = req_i.mem_req_command == HPDCACHE_MEM_ATOMIC
+                                                && req_i.mem_req_atomic == HPDCACHE_MEM_ATOMIC_STEX;
                         req_ready         = '1;
                         th_state_d        = IDLE;
                     end else begin 
@@ -367,6 +375,8 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
                 if (req_valid_i && l15_rtrn_i.l15_ack) begin
                     hpdc_tid_d[req_thid]    = req_i.mem_req_id;   // Save the request id
                     hpdc_pid_d[req_thid]    = req_pid_i;          // Save the port id
+                    hpdc_sc_d[req_thid]   = req_i.mem_req_command == HPDCACHE_MEM_ATOMIC
+                                            && req_i.mem_req_atomic == HPDCACHE_MEM_ATOMIC_STEX;
                     req_ready               = '1;
                     th_state_d              = IDLE;
                 end else begin
@@ -383,15 +393,17 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
      if (!rst_ni) begin
             th_state_q     <= IDLE;
             for (int unsigned i = 0; i < NUM_THREAD_IDS; i++) begin
-        	    hpdc_tid_q[i] <= '0;
-        	    hpdc_pid_q[i] <= '0;
-	        end
+                hpdc_tid_q[i] <= '0;
+                hpdc_pid_q[i] <= '0;
+                hpdc_sc_q[i] <= '0;
+            end
         end else begin
             th_state_q     <= th_state_d;
             for (int unsigned i = 0; i < NUM_THREAD_IDS; i++) begin
                 hpdc_tid_q[i] <= hpdc_tid_d[i];
-        		hpdc_pid_q[i] <= hpdc_pid_d[i];
-	        end
+                hpdc_pid_q[i] <= hpdc_pid_d[i];
+                hpdc_sc_q[i] <= hpdc_sc_d[i];
+            end
         end
     end
         // }}}
@@ -535,10 +547,12 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
         .is_zero_o ( sc_backoff_over_o )
     );
 
-    assign sc_pass = (l15_rtrn_i.l15_returntype!=L15_CPX_RESTYPE_ATOMIC_RES) ? 1'b0 : 
+    assign sc_pass = (l15_rtrn_i.l15_returntype!=L15_CPX_RESTYPE_ATOMIC_RES) ? 1'b0 :
+                     (!hpdc_sc_q[l15_rtrn_i.l15_threadid]) ? 1'b0 :
                      (|l15_rtrn_i.l15_data) ? 1'b0 : 1'b1;       // AMO_SC pass if data=0
 
-    assign sc_fail = (l15_rtrn_i.l15_returntype!=L15_CPX_RESTYPE_ATOMIC_RES) ? 1'b0 : 
+    assign sc_fail = (l15_rtrn_i.l15_returntype!=L15_CPX_RESTYPE_ATOMIC_RES) ? 1'b0 :
+                     (!hpdc_sc_q[l15_rtrn_i.l15_threadid]) ? 1'b0 :
                      (|l15_rtrn_i.l15_data) ? 1'b1 : 1'b0;       // AMO_SC fail if data!=0
         // }}}
     // }}}
