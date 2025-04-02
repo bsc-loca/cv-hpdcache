@@ -25,8 +25,8 @@
 //
 
 // Simulation / FPGA / ASIC memory library
-${HPDCACHE_DIR}/rtl/memory_library/include/bist_define.h
--F ${HPDCACHE_DIR}/rtl/memory_library/Flist.memory_library
++incdir+${HPDCACHE_DIR}/rtl/memory_library/include
+-F ${HPDCACHE_DIR}/rtl/memory_library/filelist.f
 
 // HPDC itself
 +incdir+${HPDCACHE_DIR}/rtl/include

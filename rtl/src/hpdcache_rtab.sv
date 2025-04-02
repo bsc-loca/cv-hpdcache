@@ -373,40 +373,43 @@ import hpdcache_pkg::*;
     );
     //  }}}
 
-    for (gen_i = 0; gen_i < N; gen_i++) begin : gen_deps_rst
-        //  reset write buffer dependency bits with the output from the write buffer
-        //  {{{
-        assign deps_rst[gen_i].wbuf_hit = wbuf_sel[gen_i] & ~(wbuf_hit_open_i |
-                                                              wbuf_hit_pend_i |
-                                                              wbuf_hit_sent_i);
-        assign deps_rst[gen_i].wbuf_not_ready = wbuf_sel[gen_i] & ~wbuf_not_ready_i;
-        //  }}}
+    always_comb
+    begin : deps_rst_comb
+        deps_rst = '0;
 
-        //  Update miss handler dependency
-        //  {{{
-        assign deps_rst[gen_i].mshr_ready = miss_ready_i;
-        //  }}}
+        for (int i = 0; i < N; i++) begin
 
-        //  Update refill dependencies
-        //  {{{
-        assign deps_rst[gen_i].mshr_full = refill_i & match_refill_mshr_set[gen_i];
-        assign deps_rst[gen_i].mshr_hit = refill_i & match_refill_nline[gen_i];
-        assign deps_rst[gen_i].write_miss = deps_rst[gen_i].mshr_hit;
-        //  }}}
+            //  reset write buffer dependency bits with the output from the write buffer
+            //  {{{
+            if (wbuf_sel[i]) begin
+                deps_rst[i].wbuf_hit = ~(wbuf_hit_open_i | wbuf_hit_pend_i | wbuf_hit_sent_i);
+                deps_rst[i].wbuf_not_ready = ~wbuf_not_ready_i;
+            end
+            //  }}}
 
-        //  Update cache directory dependencies
-        //  {{{
-        assign deps_rst[gen_i].dir_unavailable = refill_i & match_refill_set[gen_i];
-        assign deps_rst[gen_i].dir_fetch = refill_i & match_refill_set[gen_i] &
-                                           match_refill_way[gen_i];
-        //  }}}
+            //  Update miss handler dependency
+            //  {{{
+            deps_rst[i].mshr_ready = miss_ready_i;
+            //  }}}
 
-        //  Update flush dependencies
-        //  {{{
-        assign deps_rst[gen_i].flush_hit = flush_ack_i & match_flush_nline[gen_i];
-        assign deps_rst[gen_i].flush_not_ready = flush_ready_i;
-        //  }}}
-end
+            //  Update refill dependencies
+            //  {{{
+            if (refill_i) begin
+                deps_rst[i].mshr_full = match_refill_mshr_set[i];
+                deps_rst[i].mshr_hit = match_refill_nline[i];
+                deps_rst[i].write_miss = match_refill_nline[i];
+                deps_rst[i].dir_unavailable = match_refill_set[i];
+                deps_rst[i].dir_fetch = match_refill_set[i] & match_refill_way[i];
+            end
+            //  }}}
+
+            //  Update flush dependencies
+            //  {{{
+            deps_rst[i].flush_hit = flush_ack_i & match_flush_nline[i];
+            deps_rst[i].flush_not_ready = flush_ready_i;
+            //  }}}
+        end
+    end
 //  }}}
 
 //  Pop interface
@@ -618,13 +621,19 @@ end
 
     always_ff @(posedge clk_i or negedge rst_ni)
     begin : rtab_ff
-        for (int i = 0; i < N; i++) begin
-            //  Update the request array
-            //    A RTAB request is stored at allocation time, but can be modified during
-            //    a roll-back. Some fields such as the way_fetch are part of the RTAB request, and
-            //    may need to be modified when rolling it back
-            if (valid_set[i] | pop_rback_bv[i]) begin
-                req_q[i] <= alloc_req_i;
+        if (!rst_ni) begin
+            for (int i = 0; i < N; i++) begin
+                req_q[i] <= '0;
+            end
+        end else begin
+            for (int i = 0; i < N; i++) begin
+                //  Update the request array
+                //    A RTAB request is stored at allocation time, but can be modified during
+                //    a roll-back. Some fields such as the way_fetch are part of the RTAB request, and
+                //    may need to be modified when rolling it back
+                if (valid_set[i] | pop_rback_bv[i]) begin
+                    req_q[i] <= alloc_req_i;
+                end
             end
         end
     end
@@ -633,52 +642,52 @@ end
 //  Assertions
 //  {{{
 `ifndef HPDCACHE_ASSERT_OFF
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             check_i |-> $onehot0(match_check_tail)) else
                     $error("rtab: more than one entry matching");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             alloc_and_link_i |-> (check_i & check_hit_o)) else
                     $error("rtab: alloc and link shall be performed in case of check hit");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             alloc_and_link_i |->
                     ({alloc_req_i.req.addr_tag,
                       alloc_req_i.req.addr_offset[HPDcacheCfg.clOffsetWidth +:
                                                   HPDcacheCfg.setWidth]} == check_nline_i)) else
                     $error("rtab: nline for alloc and link shall match the one being checked");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             alloc_i |-> !alloc_and_link_i) else
                     $error("rtab: only one allocation per cycle is allowed");
 
 `ifndef VERILATOR
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             pop_try_i |-> ##1 (pop_commit_i | pop_rback_i)) else
                     $error("rtab: a pop try shall be followed by a commit or rollback");
 `endif
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             pop_commit_i |-> valid_q[pop_commit_ptr_i]) else
                     $error("rtab: commiting an invalid entry");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             pop_rback_i |-> valid_q[pop_rback_ptr_i]) else
                     $error("rtab: rolling-back an invalid entry");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             pop_rback_i |-> !pop_try_i) else
                     $error("rtab: cache shall not accept a new request while rolling back");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             pop_rback_i |-> ~alloc) else
                     $error("rtab: trying to allocate a new request while rolling back");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             alloc |-> ~full_o) else
                     $error("rtab: trying to allocate while the table is full");
 
-    assert property (@(posedge clk_i) disable iff (!rst_ni)
+    assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             alloc_and_link_i |-> ~cfg_single_entry_i) else
                     $error("rtab: trying to link a request in single entry mode");
 `endif

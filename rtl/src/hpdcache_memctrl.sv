@@ -115,18 +115,25 @@ import hpdcache_pkg::*;
     input  hpdcache_set_t                       dir_cmo_check_nline_set_i,
     input  hpdcache_tag_t                       dir_cmo_check_nline_tag_i,
     output hpdcache_way_vector_t                dir_cmo_check_nline_hit_way_o,
+    output logic                                dir_cmo_check_nline_wback_o,
     output logic                                dir_cmo_check_nline_dirty_o,
 
     input  logic                                dir_cmo_check_entry_i,
     input  hpdcache_set_t                       dir_cmo_check_entry_set_i,
     input  hpdcache_way_vector_t                dir_cmo_check_entry_way_i,
     output logic                                dir_cmo_check_entry_valid_o,
+    output logic                                dir_cmo_check_entry_wback_o,
     output logic                                dir_cmo_check_entry_dirty_o,
     output hpdcache_tag_t                       dir_cmo_check_entry_tag_o,
 
-    input  logic                                dir_cmo_inval_i,
-    input  hpdcache_set_t                       dir_cmo_inval_set_i,
-    input  hpdcache_way_vector_t                dir_cmo_inval_way_i,
+    input  logic                                dir_cmo_updt_i,
+    input  hpdcache_set_t                       dir_cmo_updt_set_i,
+    input  hpdcache_way_vector_t                dir_cmo_updt_way_i,
+    input  hpdcache_tag_t                       dir_cmo_updt_tag_i,
+    input  logic                                dir_cmo_updt_valid_i,
+    input  logic                                dir_cmo_updt_wback_i,
+    input  logic                                dir_cmo_updt_dirty_i,
+    input  logic                                dir_cmo_updt_fetch_i,
     //      }}}
 
     //      DATA array access interface
@@ -510,11 +517,20 @@ import hpdcache_pkg::*;
             end
 
             //  Cache directory CMO inval tag
-            dir_cmo_inval_i: begin
-                dir_addr    = dir_cmo_inval_set_i;
-                dir_cs      = dir_cmo_inval_way_i;
-                dir_we      = dir_cmo_inval_way_i;
-                dir_wentry  = '0;
+            dir_cmo_updt_i: begin
+                dir_addr    = dir_cmo_updt_set_i;
+                dir_cs      = dir_cmo_updt_way_i;
+                dir_we      = dir_cmo_updt_way_i;
+
+                for (hpdcache_uint i = 0; i < HPDcacheCfg.u.ways; i++) begin
+                    dir_wentry[i] = '{
+                        valid: dir_cmo_updt_valid_i,
+                        wback: dir_cmo_updt_wback_i,
+                        dirty: dir_cmo_updt_dirty_i,
+                        fetch: dir_cmo_updt_fetch_i,
+                        tag  : dir_cmo_updt_tag_i
+                    };
+                end
             end
 
             //  Cache directory match tag -> hit
@@ -583,8 +599,10 @@ import hpdcache_pkg::*;
     assign dir_hit_dirty_o = |(dir_hit_way_o & dir_dirty);
     assign dir_hit_fetch_o = |(dir_hit_way_o & dir_fetch);
 
+    assign dir_cmo_check_nline_wback_o = |(dir_cmo_check_nline_hit_way_o & dir_wback);
     assign dir_cmo_check_nline_dirty_o = |(dir_cmo_check_nline_hit_way_o & dir_dirty);
     assign dir_cmo_check_entry_valid_o = |(dir_req_way_q & dir_valid);
+    assign dir_cmo_check_entry_wback_o = |(dir_req_way_q & dir_wback);
     assign dir_cmo_check_entry_dirty_o = |(dir_req_way_q & dir_dirty);
     hpdcache_mux #(
         .NINPUT      (HPDcacheCfg.u.ways),
@@ -842,8 +860,8 @@ import hpdcache_pkg::*;
     end
 
     //  Mux the data according to the access word
-    typedef logic [$clog2(HPDCACHE_DATA_REQ_RATIO)-1:0] data_req_word_t;
     if (HPDCACHE_DATA_REQ_RATIO > 1) begin : gen_req_width_lt_ram_width
+        typedef logic [$clog2(HPDCACHE_DATA_REQ_RATIO)-1:0] data_req_word_t;
         data_req_word_t data_read_req_word_index_q;
 
         hpdcache_mux #(
@@ -884,11 +902,16 @@ import hpdcache_pkg::*;
     //  next cycle (hit logic)
     always_ff @(posedge clk_i or negedge rst_ni)
     begin : req_read_ff
-        if (dir_match_i || dir_amo_match_i || dir_cmo_check_nline_i || dir_inval_check_i) begin
-            dir_req_set_q <= dir_addr;
-        end
-        if (dir_cmo_check_entry_i) begin
-            dir_req_way_q <= dir_cmo_check_entry_way_i;
+        if (!rst_ni) begin
+            dir_req_set_q <= '0;
+            dir_req_way_q <= '0;
+        end else begin
+            if (dir_match_i || dir_amo_match_i || dir_cmo_check_nline_i || dir_inval_check_i) begin
+                dir_req_set_q <= dir_addr;
+            end
+            if (dir_cmo_check_entry_i) begin
+                dir_req_way_q <= dir_cmo_check_entry_way_i;
+            end
         end
     end
     //  }}}
@@ -955,12 +978,13 @@ import hpdcache_pkg::*;
     //  {{{
 `ifndef HPDCACHE_ASSERT_OFF
     for (gen_i = 0; gen_i < HPDcacheCfg.u.ways; gen_i++) begin : gen_check_dirty_state
-        check_dirty_state: assert property (@(posedge clk_i) disable iff (!rst_ni || !init_q)
+        check_dirty_state: assert property (@(posedge clk_i)
+                disable iff ((rst_ni !== 1'b1) || (init_q !== 1'b1))
                 (dir_cs[gen_i] & ~dir_we[gen_i]) |=> (dir_dirty[gen_i] |-> dir_valid[gen_i])) else
                 $error("hpdcache_memctrl: wrong directory state - dirty but not valid");
     end
 
-    concurrent_dir_access_assert: assert property (@(posedge clk_i) disable iff (!rst_ni)
+    concurrent_dir_access_assert: assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             $onehot0({dir_match_i,
                       dir_amo_match_i,
                       dir_refill_i,
@@ -968,11 +992,11 @@ import hpdcache_pkg::*;
                       dir_inval_write_i,
                       dir_cmo_check_nline_i,
                       dir_cmo_check_entry_i,
-                      dir_cmo_inval_i,
+                      dir_cmo_updt_i,
                       dir_updt_i})) else
             $error("hpdcache_memctrl: more than one process is accessing the cache directory");
 
-    concurrent_data_access_assert: assert property (@(posedge clk_i) disable iff (!rst_ni)
+    concurrent_data_access_assert: assert property (@(posedge clk_i) disable iff (rst_ni !== 1'b1)
             $onehot0({data_req_read_i,
                       data_req_write_i,
                       data_amo_write_i,
