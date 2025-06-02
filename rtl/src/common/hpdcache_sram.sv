@@ -31,7 +31,7 @@ module hpdcache_sram
 )
 (
     `ifdef INTEL_PHYSICAL_MEM_CTRL
-    input  logic [27:0]           uhdusplr_mem_ctrl,
+    input  logic [15:0]           uhdusplr_mem_ctrl,
     `endif
     input  logic                  clk,
     input  logic                  rst_n,

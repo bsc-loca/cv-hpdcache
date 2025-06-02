@@ -52,7 +52,7 @@ import hpdcache_pkg::*;
     //  {{{
 (
     `ifdef INTEL_PHYSICAL_MEM_CTRL
-    input wire [27:0] uhdusplr_mem_ctrl,
+    input wire [15:0] uhdusplr_mem_ctrl,
     `endif
     //      Global clock and reset signals
     //      {{{
