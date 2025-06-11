@@ -67,7 +67,7 @@ import hpdcache_pkg::*;
     // {{{
 (
     `ifdef INTEL_PHYSICAL_MEM_CTRL
-    input  logic [27:0]           uhdusplr_mem_ctrl,
+    input  logic [15:0]           uhdusplr_mem_ctrl,
     `endif
     input  logic                  clk_i,
     input  logic                  rst_ni,
