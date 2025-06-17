@@ -107,6 +107,10 @@ public:
         top->mem_resp_read_id_i (mem_resp_read_id);
         top->mem_resp_read_data_i (mem_resp_read_data);
         top->mem_resp_read_last_i (mem_resp_read_last);
+        #ifdef HPDCACHE_OPENPITON
+        top->mem_resp_read_inval_i (mem_resp_read_inval);
+        top->mem_resp_read_inval_nline_i (mem_resp_read_inval_nline);
+        #endif // HPDCACHE_OPENPITON
         top->mem_req_write_ready_i (mem_req_write_ready);
         top->mem_req_write_valid_o (mem_req_write_valid);
         top->mem_req_write_addr_o (mem_req_write_addr);
@@ -178,6 +182,10 @@ public:
         hpdcache_test_mem_resp_model_i->mem_resp_read_id_o (mem_resp_read_id);
         hpdcache_test_mem_resp_model_i->mem_resp_read_data_o (mem_resp_read_data);
         hpdcache_test_mem_resp_model_i->mem_resp_read_last_o (mem_resp_read_last);
+        #ifdef HPDCACHE_OPENPITON
+        hpdcache_test_mem_resp_model_i->mem_resp_read_inval_o (mem_resp_read_inval);
+        hpdcache_test_mem_resp_model_i->mem_resp_read_inval_nline_o (mem_resp_read_inval_nline);
+        #endif // HPDCACHE_OPENPITON
         hpdcache_test_mem_resp_model_i->mem_req_write_ready_o (mem_req_write_ready);
         hpdcache_test_mem_resp_model_i->mem_req_write_valid_i (mem_req_write_valid);
         hpdcache_test_mem_resp_model_i->mem_req_write_addr_i (mem_req_write_addr);
@@ -377,6 +385,10 @@ private:
     sc_core::sc_signal <uint32_t> mem_resp_read_id;
     sc_core::sc_signal <sc_bv<HPDCACHE_MEM_DATA_WIDTH> > mem_resp_read_data;
     sc_core::sc_signal <bool> mem_resp_read_last;
+    #ifdef HPDCACHE_OPENPITON
+    sc_core::sc_signal <bool> mem_resp_read_inval;
+    sc_core::sc_signal <uint64_t> mem_resp_read_inval_nline;
+    #endif // HPDCACHE_OPENPITON
     sc_core::sc_signal <bool> mem_req_write_ready;
     sc_core::sc_signal <bool> mem_req_write_valid;
     sc_core::sc_signal <uint64_t> mem_req_write_addr;
