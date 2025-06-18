@@ -150,7 +150,7 @@ import hpdcache_pkg::*;
     //  }}}
 
     input  logic                  refill_busy_i,
-    input  logic                  refill_req_valid_i
+    input  logic                  refill_req_valid_i,
 
     //  Configuration interface
     //  {{{
