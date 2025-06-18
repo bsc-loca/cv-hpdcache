@@ -172,4 +172,10 @@
                                           (HPDCACHE_RSP_ERROR_WIDTH) + \
                                           (HPDCACHE_RSP_ABORTED_WIDTH))
 
+#if HPDCACHE_TAG_WIDTH > 32
+  #define HPDCACHE_TAG_TYPE uint64_t
+#else
+  #define HPDCACHE_TAG_TYPE uint32_t
+#endif
+
 #endif // __HPDCACHE_TEST_DEFS_H__

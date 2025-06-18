@@ -365,7 +365,7 @@ private:
     sc_core::sc_signal <bool> core_req_ready;
     sc_core::sc_signal <sc_bv<HPDCACHE_CORE_REQ_WIDTH> > core_req;
     sc_core::sc_signal <bool> core_req_abort;
-    sc_core::sc_signal <uint64_t> core_req_tag;
+    sc_core::sc_signal <HPDCACHE_TAG_TYPE> core_req_tag;
     sc_core::sc_signal <uint32_t> core_req_pma;
     sc_core::sc_signal <bool> core_rsp_valid;
     sc_core::sc_signal <sc_bv<HPDCACHE_CORE_RSP_WIDTH> > core_rsp;

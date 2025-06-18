@@ -266,6 +266,7 @@ $(VERILATE_LOG): print_config $(SVLOG_SOURCES) $(TB_TOP).cpp
 	        +incdir+$(HPDCACHE_DIR)/rtl/memory_library/include \
 	        +incdir+$(HPDCACHE_DIR)/rtl/include \
 	        $(SVLOG_SOURCES) \
+			--unroll-count 4096 \
 	        --exe $(TB_TOP).cpp --top-module $(DUT) >& $@
 	$(Q)$(ECHO) "VERILATE FINISHED" >> $@
 	$(Q)$(SCANLOG) -pat scripts/scan_patterns/verilate_patterns.pat \
@@ -332,3 +333,5 @@ print_config:
 	@printf "CONF_HPDCACHE_MEM_DATA_WIDTH=$(CONF_HPDCACHE_MEM_DATA_WIDTH)\n"
 	@printf "CONF_HPDCACHE_WT_ENABLE=$(CONF_HPDCACHE_WT_ENABLE)\n"
 	@printf "CONF_HPDCACHE_WB_ENABLE=$(CONF_HPDCACHE_WB_ENABLE)\n"
+	@printf "CONF_HPDCACHE_LOW_LATENCY=$(CONF_HPDCACHE_LOW_LATENCY)\n"
+	@printf "CONF_HPDCACHE_OPENPITON=$(CONF_HPDCACHE_OPENPITON)\n"

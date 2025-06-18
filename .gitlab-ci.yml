@@ -45,7 +45,7 @@ testbench-build:
     - module load gcc
     - source .gitlab/ci/env.sh
     - .github/scripts/install_systemc.sh
-    - make -C rtl/tb/ build CONFIG=hpc_config.mk
+    - make -C rtl/tb/ build CONFIG=lox_config.mk
   cache:
     key: systemc
     paths:
