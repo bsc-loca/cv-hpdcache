@@ -149,6 +149,9 @@ import hpdcache_pkg::*;
     input  hpdcache_mem_resp_w_t  mem_resp_write_i,
     //  }}}
 
+    input  logic                  refill_busy_i,
+    input  logic                  refill_req_valid_i
+
     //  Configuration interface
     //  {{{
     input  logic                  cfg_error_on_cacheable_amo_i
@@ -595,7 +598,9 @@ import hpdcache_pkg::*;
             //  Check for a cache hit on the AMO target address
             //  {{{
             UC_AMO_READ_DIR: begin
-                uc_fsm_d = UC_AMO_WRITE_DATA;
+                if (~refill_busy_i & ~refill_req_valid_i) begin
+                    uc_fsm_d = UC_AMO_WRITE_DATA;
+                end
             end
             //  }}}
 
@@ -652,7 +657,7 @@ import hpdcache_pkg::*;
         .result_o            (amo_result)
     );
 
-    assign dir_amo_match_o = (uc_fsm_q == UC_AMO_READ_DIR);
+    assign dir_amo_match_o = (uc_fsm_q == UC_AMO_READ_DIR) & ~refill_busy_i & ~refill_req_valid_i;
     assign dir_amo_match_set_o = req_addr_q[HPDcacheCfg.clOffsetWidth +: HPDcacheCfg.setWidth];
     assign dir_amo_match_tag_o = req_addr_q[(HPDcacheCfg.clOffsetWidth + HPDcacheCfg.setWidth) +:
                                             HPDcacheCfg.tagWidth];

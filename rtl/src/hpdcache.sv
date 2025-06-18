@@ -908,6 +908,9 @@ import hpdcache_pkg::*;
         .mem_resp_write_valid_i        (mem_resp_write_uc_valid),
         .mem_resp_write_i              (mem_resp_write_uc),
 
+        .refill_busy_i                 (refill_busy),
+        .refill_req_valid_i            (refill_req_valid),
+
         .cfg_error_on_cacheable_amo_i
     );
     //  }}}
