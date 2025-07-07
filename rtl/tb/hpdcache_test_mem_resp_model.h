@@ -59,6 +59,10 @@ public:
     sc_out<uint32_t>                                       mem_resp_read_id_o;
     sc_out<sc_bv<HPDCACHE_MEM_DATA_WIDTH> >                mem_resp_read_data_o;
     sc_out<bool>                                           mem_resp_read_last_o;
+#ifdef HPDCACHE_OPENPITON
+    sc_out<bool>                                           mem_resp_read_inval_o;
+    sc_out<uint64_t>                                       mem_resp_read_inval_nline_o;
+#endif // HPDCACHE_OPENPITON
 
     sc_out<bool>                                           mem_req_write_ready_o;
     sc_in<bool>                                            mem_req_write_valid_i;
@@ -185,6 +189,14 @@ private:
 #endif
             }
 
+            #ifdef HPDCACHE_OPENPITON
+            inval_rand->next();
+            if (inval_rand.read()) {
+                resp.inval = true;
+                resp.inval_nline = 0x69;
+            }
+            #endif // HPDCACHE_OPENPITON
+
             //  send response
             resp.error = 0;
             resp.id = req.id;
@@ -219,6 +231,15 @@ private:
                 read_resp.error = 0;
                 read_resp.id = req.id;
                 read_resp.last = true;
+
+                #ifdef HPDCACHE_OPENPITON
+                inval_rand->next();
+                if (inval_rand.read()) {
+                    read_resp.inval = true;
+                    read_resp.inval_nline = 0x69;
+                }
+                #endif // HPDCACHE_OPENPITON
+
                 read_resp_fifo.write(read_resp);
             }
 
@@ -307,6 +328,15 @@ private:
                 read_resp.error = 0;
                 read_resp.id = req.id;
                 read_resp.last = true;
+
+                #ifdef HPDCACHE_OPENPITON
+                inval_rand->next();
+                if (inval_rand.read()) {
+                    read_resp.inval = true;
+                    read_resp.inval_nline = 0x69;
+                }
+                #endif // HPDCACHE_OPENPITON
+
                 read_resp_fifo.write(read_resp);
             }
         }
@@ -328,6 +358,19 @@ private:
             rd_valid_delay->next();
             for (int i = 0; i < rd_valid_delay->read(); i++) wait();
             sb_mem_read_resp_o.write(read_resp); // send response to scoreboard
+
+            #ifdef HPDCACHE_OPENPITON
+            // If the response has an invalidation, send it before the actual response data
+            if (read_resp.inval) {
+                mem_resp_read_valid_o.write(true);
+                mem_resp_read_inval_o.write(true);
+                mem_resp_read_inval_nline_o.write(read_resp.inval_nline);
+                wait();
+            }
+            mem_resp_read_inval_o.write(false);
+            mem_resp_read_inval_nline_o.write(0);
+            #endif
+
             mem_resp_read_valid_o.write(true);
             mem_resp_read_error_o.write(read_resp.error);
             mem_resp_read_id_o.write(read_resp.id);

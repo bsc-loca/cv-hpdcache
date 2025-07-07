@@ -30,6 +30,9 @@ module hpdcache_sram_wbyteenable
     parameter int unsigned DEPTH = 2**ADDR_SIZE
 )
 (
+    `ifdef INTEL_PHYSICAL_MEM_CTRL
+    input wire [27:0] uhdusplr_mem_ctrl,
+    `endif
     input  logic                   clk,
     input  logic                   rst_n,
     input  logic                   cs,

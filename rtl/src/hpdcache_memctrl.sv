@@ -52,7 +52,7 @@ import hpdcache_pkg::*;
     //  {{{
 (
     `ifdef INTEL_PHYSICAL_MEM_CTRL
-    input wire [27:0] uhdusplr_mem_ctrl,
+    input wire [15:0] uhdusplr_mem_ctrl,
     `endif
     //      Global clock and reset signals
     //      {{{
@@ -405,6 +405,9 @@ import hpdcache_pkg::*;
                         .DATA_SIZE   (HPDCACHE_DATA_RAM_WIDTH),
                         .ADDR_SIZE   (HPDCACHE_DATA_RAM_ADDR_WIDTH)
                     ) data_sram (
+                        `ifdef INTEL_PHYSICAL_MEM_CTRL
+                        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+                        `endif
                         .clk         (clk_i),
                         .rst_n       (rst_ni),
                         .cs          (data_cs[y][x]),
@@ -431,6 +434,9 @@ import hpdcache_pkg::*;
                         .DATA_SIZE   (HPDCACHE_DATA_RAM_WIDTH),
                         .ADDR_SIZE   (HPDCACHE_DATA_RAM_ADDR_WIDTH)
                     ) data_sram (
+                        `ifdef INTEL_PHYSICAL_MEM_CTRL
+                        .uhdusplr_mem_ctrl  (uhdusplr_mem_ctrl),
+                        `endif
                         .clk         (clk_i),
                         .rst_n       (rst_ni),
                         .cs          (data_cs[y][x]),

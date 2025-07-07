@@ -67,7 +67,7 @@ import hpdcache_pkg::*;
     //  {{{
 (
     `ifdef INTEL_PHYSICAL_MEM_CTRL
-    input wire [27:0] uhdusplr_mem_ctrl,
+    input wire [15:0] uhdusplr_mem_ctrl,
     `endif
     //      Clock and reset signals
     input  logic                          clk_i,
@@ -907,6 +907,9 @@ import hpdcache_pkg::*;
         .mem_resp_write_ready_o        (mem_resp_write_uc_ready),
         .mem_resp_write_valid_i        (mem_resp_write_uc_valid),
         .mem_resp_write_i              (mem_resp_write_uc),
+
+        .refill_busy_i                 (refill_busy),
+        .refill_req_valid_i            (refill_req_valid),
 
         .cfg_error_on_cacheable_amo_i
     );
