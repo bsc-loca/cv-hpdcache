@@ -513,12 +513,21 @@ public:
     uint32_t                       id;
     sc_bv<HPDCACHE_MEM_DATA_WIDTH> data;
     bool                           last;
+#ifdef HPDCACHE_OPENPITON
+    bool                           inval;
+    uint64_t                       inval_nline;
+#endif // HPDCACHE_OPENPITON
 
     hpdcache_test_transaction_mem_read_resp() :
             error(0),
             id(0),
             data(0),
             last(false)
+#ifdef HPDCACHE_OPENPITON
+            ,
+            inval(false),
+            inval_nline(0)
+#endif // HPDCACHE_OPENPITON
     {
 
     }
@@ -531,6 +540,13 @@ public:
            << " / ID = 0x" << std::hex << id << std::dec
            << (last       ? " / LAST"  : "")
            << (error != 0 ? " / ERROR" : "");
+
+        #ifdef HPDCACHE_OPENPITON
+        if (inval) {
+            os << " / INVALIDATION NLINE = 0x" << std::hex << inval_nline << std::dec;
+        }
+        #endif
+
         return os.str();
     }
 

@@ -98,7 +98,9 @@ import hpdcache_pkg::*;
     localparam type hpdcache_mem_addr_t = logic [Cfg.u.memAddrWidth-1:0],
     localparam type hpdcache_mem_id_t   = logic [Cfg.u.memIdWidth-1:0],
     localparam type hpdcache_mem_data_t = logic [Cfg.u.memDataWidth-1:0],
-    localparam type hpdcache_mem_be_t   = logic [Cfg.u.memDataWidth/8-1:0]
+    localparam type hpdcache_mem_be_t   = logic [Cfg.u.memDataWidth/8-1:0],
+
+    localparam type hpdcache_nline_t    = logic [Cfg.u.paWidth-$clog2(Cfg.clWidth / 8)-1:0]
 )
     //  }}}
 
@@ -143,6 +145,10 @@ import hpdcache_pkg::*;
     input  wire hpdcache_mem_id_t              mem_resp_read_id_i,
     input  wire hpdcache_mem_data_t            mem_resp_read_data_i,
     input  wire logic                          mem_resp_read_last_i,
+`ifdef HPDCACHE_OPENPITON
+    input  wire logic                          mem_resp_read_inval_i,
+    input  wire hpdcache_nline_t               mem_resp_read_inval_nline_i,
+`endif
 
     //      Memory write interface
     input  wire logic                          mem_req_write_ready_i,
@@ -303,7 +309,8 @@ import hpdcache_pkg::*;
         .hpdcache_mem_req_t                (hpdcache_mem_req_t),
         .hpdcache_mem_req_w_t              (hpdcache_mem_req_w_t),
         .hpdcache_mem_resp_r_t             (hpdcache_mem_resp_r_t),
-        .hpdcache_mem_resp_w_t             (hpdcache_mem_resp_w_t)
+        .hpdcache_mem_resp_w_t             (hpdcache_mem_resp_w_t),
+        .hpdcache_nline_t                  (hpdcache_nline_t)
     ) i_hpdcache(
         .clk_i,
         .rst_ni,
@@ -327,6 +334,10 @@ import hpdcache_pkg::*;
         .mem_resp_read_ready_o             (mem_resp_read_ready_o),
         .mem_resp_read_valid_i             (mem_resp_read_valid_i),
         .mem_resp_read_i                   (mem_resp_read),
+`ifdef HPDCACHE_OPENPITON
+        .mem_resp_read_inval_i             (mem_resp_read_inval_i),
+        .mem_resp_read_inval_nline_i       (mem_resp_read_inval_nline_i),
+`endif
 
         .mem_req_write_ready_i             (mem_req_write_ready_i),
         .mem_req_write_valid_o             (mem_req_write_valid_o),

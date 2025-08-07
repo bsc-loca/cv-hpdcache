@@ -194,6 +194,16 @@ $(subst $${HPDCACHE_DIR},$(HPDCACHE_DIR),\
 $(shell sed -n -e '/.*\.sv/p' \
     $(HPDCACHE_DIR)/rtl/hpdcache.Flist hpdcache.vlt.Flist))
 
+SVLOG_SOURCES+=\
+	$(HPDCACHE_DIR)/rtl/memory_library/rtl/sp_ram.v\
+	$(HPDCACHE_DIR)/rtl/memory_library/rtl/dp_ram.v\
+	$(HPDCACHE_DIR)/rtl/memory_library/rtl/sp_ram_model.v\
+	$(HPDCACHE_DIR)/rtl/memory_library/rtl/dp_ram_model.v\
+	$(HPDCACHE_DIR)/rtl/memory_library/rtl/sp_ram_asic.v\
+	$(HPDCACHE_DIR)/rtl/memory_library/rtl/dp_ram_asic.sv
+
+
+
 export help_message
 
 .PHONY: help
@@ -253,8 +263,10 @@ $(VERILATE_LOG): print_config $(SVLOG_SOURCES) $(TB_TOP).cpp
 	$(Q)$(MKDIR) $(dir $@)
 	$(Q)$(VERILATOR) --sc $(VERILATOR_FLAGS) -Mdir $(BUILD_DIR) \
 	        $(if $(filter $(DISABLE_WAIVERS),1),,scripts/verilate_waivers.vlt) \
+	        +incdir+$(HPDCACHE_DIR)/rtl/memory_library/include \
 	        +incdir+$(HPDCACHE_DIR)/rtl/include \
 	        $(SVLOG_SOURCES) \
+			--unroll-count 4096 \
 	        --exe $(TB_TOP).cpp --top-module $(DUT) >& $@
 	$(Q)$(ECHO) "VERILATE FINISHED" >> $@
 	$(Q)$(SCANLOG) -pat scripts/scan_patterns/verilate_patterns.pat \
@@ -321,3 +333,5 @@ print_config:
 	@printf "CONF_HPDCACHE_MEM_DATA_WIDTH=$(CONF_HPDCACHE_MEM_DATA_WIDTH)\n"
 	@printf "CONF_HPDCACHE_WT_ENABLE=$(CONF_HPDCACHE_WT_ENABLE)\n"
 	@printf "CONF_HPDCACHE_WB_ENABLE=$(CONF_HPDCACHE_WB_ENABLE)\n"
+	@printf "CONF_HPDCACHE_LOW_LATENCY=$(CONF_HPDCACHE_LOW_LATENCY)\n"
+	@printf "CONF_HPDCACHE_OPENPITON=$(CONF_HPDCACHE_OPENPITON)\n"

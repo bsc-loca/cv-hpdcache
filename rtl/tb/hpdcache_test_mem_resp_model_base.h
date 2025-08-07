@@ -128,6 +128,9 @@ protected:
     scv_smart_ptr<int> wa_ready_delay;
     scv_smart_ptr<int> wd_ready_delay;
     scv_smart_ptr<int> wb_valid_delay;
+    #ifdef HPDCACHE_OPENPITON
+    scv_smart_ptr<bool> inval_rand;
+    #endif // HPDCACHE_OPENPITON
 
     static constexpr unsigned int MEM_NOC_DATA_WORDS = HPDCACHE_MEM_DATA_WIDTH/64;
 
@@ -177,6 +180,13 @@ public:
         wb_delay_distribution.push(pair<int,int>(3,  8), 90);
         wb_delay_distribution.push(pair<int,int>(9, 64),  2);
         wb_valid_delay->set_mode(wb_delay_distribution);
+
+        #ifdef HPDCACHE_OPENPITON
+        scv_bag<bool> invalidation_distribution;
+        invalidation_distribution.add(true, 15);
+        invalidation_distribution.add(false, 85);
+        inval_rand->set_mode(invalidation_distribution);
+        #endif // HPDCACHE_OPENPITON
     }
 
     ~hpdcache_test_mem_resp_model_base()
