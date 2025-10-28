@@ -286,9 +286,16 @@ package hpdcache_pkg;
     typedef enum logic [1:0] {
         HPDCACHE_MEM_READ     = 2'b00,
         HPDCACHE_MEM_WRITE    = 2'b01,
-        HPDCACHE_MEM_ATOMIC   = 2'b10
-        //  Reserved        = 2'b11 - TODO: CMO ?
+        HPDCACHE_MEM_ATOMIC   = 2'b10,
+        HPDCACHE_MEM_CMO      = 2'b11
     } hpdcache_mem_command_e;
+
+    // TODO: CMO Prefetch, CMO Zero...
+    typedef enum logic [1:0] {
+        HPDCACHE_MEM_CMO_INVAL = 2'b00,
+        HPDCACHE_MEM_CMO_CLEAN = 2'b01,
+        HPDCACHE_MEM_CMO_FLUSH = 2'b10
+    } hpdcache_mem_cmo_e;
 
     typedef enum logic [3:0] {
         HPDCACHE_MEM_ATOMIC_ADD  = 4'b0000,

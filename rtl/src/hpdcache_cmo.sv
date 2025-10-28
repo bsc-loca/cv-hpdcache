@@ -40,7 +40,11 @@ import hpdcache_pkg::*;
     parameter type hpdcache_req_addr_t = logic,
     parameter type hpdcache_req_tid_t = logic,
     parameter type hpdcache_req_sid_t = logic,
-    parameter type hpdcache_req_data_t = logic
+    parameter type hpdcache_req_data_t = logic,
+
+    parameter type hpdcache_mem_id_t = logic,
+    parameter type hpdcache_mem_req_t = logic,
+    parameter type hpdcache_mem_resp_r_t = logic
 )
 //  }}}
 
@@ -56,6 +60,7 @@ import hpdcache_pkg::*;
     input  logic                  mshr_empty_i,
     input  logic                  rtab_empty_i,
     input  logic                  ctrl_empty_i,
+    output logic                  cmo_pending,
     //  }}}
 
     //  Request interface
@@ -110,6 +115,19 @@ import hpdcache_pkg::*;
     output hpdcache_tag_t         dir_updt_tag_o,
     // }}}
 
+    //  Read Memory Req Interface
+    //  {{{
+    input  logic                  mem_req_ready_i,
+    output logic                  mem_req_valid_o,
+    output hpdcache_mem_req_t     mem_req_o,
+    //  }}}
+
+    //  Read Memory Resp Interface
+    //  {{{
+    input  logic                  mem_resp_valid_i,
+    output logic                  mem_resp_ready_o,
+    //  }}}
+
     //  Flush Controller Interface
     //  {{{
     input  logic                  flush_empty_i,
@@ -133,7 +151,10 @@ import hpdcache_pkg::*;
         CMOH_FLUSH_ALL_NEXT,
         CMOH_FLUSH_ALL_LAST,
         CMOH_FLUSH_NLINE_FIRST,
-        CMOH_FLUSH_NLINE_NEXT
+        CMOH_FLUSH_NLINE_NEXT,
+        CMOH_PROP_REQ,
+        CMOH_WAIT_PROP_RESP,
+        CMOH_RESP_CORE
     } hpdcache_cmoh_fsm_t;
 //  }}}
 
@@ -185,7 +206,7 @@ import hpdcache_pkg::*;
     );
 
     assign core_rsp_r       = core_rsp_send_q & core_rsp_ready_i;
-    assign core_rsp_valid_o = core_rsp_rok    & core_rsp_send_q;
+    //assign core_rsp_valid_o = core_rsp_rok    & core_rsp_send_q;
 //  }}}
 
 //  CMO request handler FSM
@@ -248,14 +269,22 @@ import hpdcache_pkg::*;
 
         core_rsp_w      = 1'b0;
         core_rsp_send_d = core_rsp_send_q;
+        
+        core_rsp_valid_o = 1'b0;
 
         req_ready_o = 1'b0;
 
+        mem_req_valid_o = 1'b0;
+        mem_req_o = '0;
+
+        mem_resp_ready_o = 1'b0;
+        cmo_pending = 1'b0;
         cmoh_fsm_d = cmoh_fsm_q;
 
         unique case (cmoh_fsm_q)
             CMOH_IDLE: begin
-                req_ready_o = ~core_rsp_rok | core_rsp_r;
+                //req_ready_o = ~core_rsp_rok | core_rsp_r; //FIXME
+                req_ready_o = 1'b1;
 
                 if (core_rsp_r) begin
                     core_rsp_send_d = 1'b0;
@@ -287,7 +316,10 @@ import hpdcache_pkg::*;
                             cmoh_addr_d    = req_addr_i;
                             cmoh_way_reset = 1'b1;
                             cmoh_set_reset = 1'b1;
-                            if (mshr_empty_i && rtab_empty_i && ctrl_empty_i) begin // CMO
+                            if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin // CMO -> TODO: Check wbuf_empty
+                                `ifdef CMO_TOPDOWN
+                                cmoh_fsm_d     = CMOH_PROP_REQ;
+                                `else //FIXME
                                 unique if (req_op_i.is_inval_by_nline) begin
                                     cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
                                 end else if (req_op_i.is_inval_all) begin
@@ -305,6 +337,7 @@ import hpdcache_pkg::*;
                                     cmoh_flush_req_inval_d = 1'b1;
                                     cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
                                 end
+                                `endif
                             end else begin
                                 cmoh_fsm_d = CMOH_WAIT_MSHR_RTAB_EMPTY;
                             end
@@ -320,7 +353,10 @@ import hpdcache_pkg::*;
                 end
             end
             CMOH_WAIT_MSHR_RTAB_EMPTY: begin
-                if (mshr_empty_i && rtab_empty_i && ctrl_empty_i) begin
+                if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin // TODO: Check wbuf empty
+                    `ifdef CMO_TOPDOWN
+                        cmoh_fsm_d     = CMOH_PROP_REQ;
+                    `else //FIXME
                     unique if (cmoh_op_q.is_inval_by_nline) begin
                         cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
                     end else if (cmoh_op_q.is_inval_all) begin
@@ -338,6 +374,7 @@ import hpdcache_pkg::*;
                         cmoh_flush_req_inval_d = 1'b1;
                         cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
                     end
+                    `endif
                 end
             end
             CMOH_INVAL_CHECK_NLINE: begin
@@ -362,7 +399,7 @@ import hpdcache_pkg::*;
                         dir_updt_tag_o   = '0;
 
                         core_rsp_send_d = core_rsp_rok;
-                        cmoh_fsm_d      = CMOH_IDLE;
+                        cmoh_fsm_d      = CMOH_PROP_REQ;
                     end
 
                     //  The CMO requests a full invalidation (or flush with invalidation when the
@@ -498,9 +535,58 @@ import hpdcache_pkg::*;
 
                 //  Make sure that all requests have been processed
                 if (flush_empty_i && !flush_alloc_o) begin
-                    core_rsp_send_d = core_rsp_rok;
+                    core_rsp_send_d = core_rsp_rok; 
+                    cmoh_fsm_d = CMOH_PROP_REQ;
+                end
+            end
+            CMOH_PROP_REQ: begin // Propagate CMO instructions to next cache level
+                
+                mem_resp_ready_o = 1'b1;
+                cmo_pending = 1'b1;
+                mem_req_valid_o = 1'b1;
+                mem_req_o.mem_req_addr = cmoh_addr_q; // Do we need to align it?
+                //mem_req_o.mem_req_len = hpdcache_mem_len_t'(); // FIXME
+                //mem_req_o.mem_req_size = ; // FIXME
+                mem_req_o.mem_req_command = HPDCACHE_MEM_CMO;
+                mem_req_o.mem_req_id = '1; // Reuse NC request id 
+                case(1'b1)
+                    req_op_i.is_inval_by_nline:
+                    begin
+                        mem_req_o.mem_req_cmo = HPDCACHE_MEM_CMO_INVAL;
+                    end
+                    req_op_i.is_flush_by_nline:
+                    begin
+                        mem_req_o.mem_req_cmo = HPDCACHE_MEM_CMO_CLEAN;
+                    end
+                    req_op_i.is_flush_inval_by_nline:
+                    begin
+                        mem_req_o.mem_req_cmo = HPDCACHE_MEM_CMO_FLUSH;
+                    end
+                    default:
+                    begin
+                        mem_req_valid_o = 1'b0;
+                        cmoh_fsm_d = CMOH_IDLE;
+                    end
+                endcase
+
+                if(mem_req_ready_i)
+                begin
+                    cmoh_fsm_d = CMOH_WAIT_PROP_RESP;
+                end
+            end
+            CMOH_WAIT_PROP_RESP: begin
+                cmo_pending = 1'b1;
+                mem_resp_ready_o = 1'b1;
+
+                if(mem_resp_valid_i) cmoh_fsm_d = CMOH_RESP_CORE;
+            end
+            CMOH_RESP_CORE: begin
+                if(core_rsp_ready_i) begin
+                    core_rsp_valid_o = 1'b1;
+                    core_rsp_o = core_rsp_rok;
                     cmoh_fsm_d = CMOH_IDLE;
                 end
+                
             end
         endcase
     end
