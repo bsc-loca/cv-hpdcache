@@ -206,7 +206,7 @@ import hpdcache_pkg::*;
     );
 
     assign core_rsp_r       = core_rsp_send_q & core_rsp_ready_i;
-    //assign core_rsp_valid_o = core_rsp_rok    & core_rsp_send_q;
+    assign core_rsp_valid_o = core_rsp_rok    & core_rsp_send_q;
 //  }}}
 
 //  CMO request handler FSM
@@ -270,7 +270,6 @@ import hpdcache_pkg::*;
         core_rsp_w      = 1'b0;
         core_rsp_send_d = core_rsp_send_q;
         
-        core_rsp_valid_o = 1'b0;
 
         req_ready_o = 1'b0;
 
@@ -316,10 +315,10 @@ import hpdcache_pkg::*;
                             cmoh_addr_d    = req_addr_i;
                             cmoh_way_reset = 1'b1;
                             cmoh_set_reset = 1'b1;
-                            if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin // CMO -> TODO: Check wbuf_empty
+                            if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin
                                 `ifdef CMO_TOPDOWN
                                 cmoh_fsm_d     = CMOH_PROP_REQ;
-                                `else //FIXME
+                                `else 
                                 unique if (req_op_i.is_inval_by_nline) begin
                                     cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
                                 end else if (req_op_i.is_inval_all) begin
@@ -353,10 +352,10 @@ import hpdcache_pkg::*;
                 end
             end
             CMOH_WAIT_MSHR_RTAB_EMPTY: begin
-                if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin // TODO: Check wbuf empty
+                if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin
                     `ifdef CMO_TOPDOWN
                         cmoh_fsm_d     = CMOH_PROP_REQ;
-                    `else //FIXME
+                    `else
                     unique if (cmoh_op_q.is_inval_by_nline) begin
                         cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
                     end else if (cmoh_op_q.is_inval_all) begin
@@ -398,12 +397,16 @@ import hpdcache_pkg::*;
                         dir_updt_fetch_o = 1'b0;
                         dir_updt_tag_o   = '0;
 
-                        core_rsp_send_d = core_rsp_rok;
-                        cmoh_fsm_d      = CMOH_PROP_REQ;
+                        `ifdef CMO_TOPDOWN
+                            cmoh_fsm_d = CMOH_PROP_REQ;
+                        `else
+                            core_rsp_send_d = core_rsp_rok;
+                            cmoh_fsm_d = CMOH_IDLE;
+                        `endif
                     end
 
                     //  The CMO requests a full invalidation (or flush with invalidation when the
-                    //  cache does not support WB policy)
+                    //  cache does not support WB policy) TODO CMO propagation to further levels if needed
                     cmoh_op_q.is_inval_all,
                     cmoh_op_q.is_flush_inval_all:
                     begin
@@ -511,8 +514,12 @@ import hpdcache_pkg::*;
                 end else if (cmoh_flush_req_inval_q) begin
                     cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
                 end else begin
-                    core_rsp_send_d = core_rsp_rok;
-                    cmoh_fsm_d = CMOH_IDLE;
+                    `ifdef CMO_TOPDOWN
+                        cmoh_fsm_d = CMOH_PROP_REQ;
+                    `else
+                        core_rsp_send_d = core_rsp_rok;
+                        cmoh_fsm_d = CMOH_IDLE;
+                    `endif
                 end
             end
             CMOH_FLUSH_NLINE_NEXT: begin
@@ -535,8 +542,12 @@ import hpdcache_pkg::*;
 
                 //  Make sure that all requests have been processed
                 if (flush_empty_i && !flush_alloc_o) begin
-                    core_rsp_send_d = core_rsp_rok; 
-                    cmoh_fsm_d = CMOH_PROP_REQ;
+                    `ifdef CMO_TOPDOWN
+                        cmoh_fsm_d = CMOH_PROP_REQ;
+                    `else
+                        core_rsp_send_d = core_rsp_rok;
+                        cmoh_fsm_d = CMOH_IDLE;
+                    `endif
                 end
             end
             CMOH_PROP_REQ: begin // Propagate CMO instructions to next cache level
@@ -544,9 +555,7 @@ import hpdcache_pkg::*;
                 mem_resp_ready_o = 1'b1;
                 cmo_pending = 1'b1;
                 mem_req_valid_o = 1'b1;
-                mem_req_o.mem_req_addr = cmoh_addr_q; // Do we need to align it?
-                //mem_req_o.mem_req_len = hpdcache_mem_len_t'(); // FIXME
-                //mem_req_o.mem_req_size = ; // FIXME
+                mem_req_o.mem_req_addr = cmoh_addr_q;
                 mem_req_o.mem_req_command = HPDCACHE_MEM_CMO;
                 mem_req_o.mem_req_id = '1; // Reuse NC request id 
                 case(1'b1)
@@ -582,8 +591,7 @@ import hpdcache_pkg::*;
             end
             CMOH_RESP_CORE: begin
                 if(core_rsp_ready_i) begin
-                    core_rsp_valid_o = 1'b1;
-                    core_rsp_o = core_rsp_rok;
+                    core_rsp_send_d = core_rsp_rok; 
                     cmoh_fsm_d = CMOH_IDLE;
                 end
                 
