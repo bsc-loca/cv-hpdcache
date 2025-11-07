@@ -231,6 +231,7 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*; import ar
            l15_req_o.l15_data_next_entry      = '0, // unused in Ariane (only used for CAS atomic requests)
            l15_req_o.l15_csm_data             = '0, // unused in Ariane (only used for coherence domain restriction features)
            l15_req_o.l15_amo_op               = req_amo_op_type,
+           l15_req_o.l15_cmo_op               = '0,
            l15_req_o.l15_prefetch             = '0, // unused in openpiton
            l15_req_o.l15_invalidate_cacheline = '0, // unused by Ariane as L1 has no ECC at the moment
            l15_req_o.l15_blockstore           = '0, // unused in openpiton
