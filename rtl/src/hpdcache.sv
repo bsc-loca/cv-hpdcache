@@ -1134,7 +1134,7 @@ import hpdcache_pkg::*;
         .mem_req_read_o        (mem_req_read_o)
     );
 
-    //      Read response interface -> TODO: CMO
+    //      Read response interface
     always_comb
     begin : mem_resp_read_demux_comb
         mem_resp_read_uc_valid = 1'b0;
@@ -1142,7 +1142,7 @@ import hpdcache_pkg::*;
         mem_resp_cmo_valid     = 1'b0;
         mem_resp_read_ready_o = 1'b0;
         if (mem_resp_read_valid_i) begin
-            if (mem_resp_read_i.mem_resp_r_id == {HPDcacheCfg.u.memIdWidth{1'b1}} && cmo_pending) begin
+            if (mem_resp_read_i.mem_resp_r_id == {HPDcacheCfg.u.memIdWidth{1'b1}} && cmo_pending && ~mem_resp_read_miss_inval) begin
                 mem_resp_cmo_valid = 1'b1;
                 mem_resp_read_ready_o = mem_resp_cmo_ready;
             end
