@@ -282,8 +282,7 @@ import hpdcache_pkg::*;
 
         unique case (cmoh_fsm_q)
             CMOH_IDLE: begin
-                //req_ready_o = ~core_rsp_rok | core_rsp_r; //FIXME
-                req_ready_o = 1'b1;
+                req_ready_o = ~core_rsp_rok | core_rsp_r;
 
                 if (core_rsp_r) begin
                     core_rsp_send_d = 1'b0;
