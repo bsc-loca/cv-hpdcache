@@ -951,7 +951,7 @@ import hpdcache_pkg::*;
         .mshr_empty_i                  (miss_mshr_empty),
         .rtab_empty_i                  (rtab_empty),
         .ctrl_empty_i                  (ctrl_empty),
-        .cmo_pending,
+        .cmo_pending_o                 (cmo_pending),
 
         .req_valid_i                   (cmo_req_valid),
         .req_ready_o                   (cmo_ready),
