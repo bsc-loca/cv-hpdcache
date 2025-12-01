@@ -560,7 +560,7 @@ import hpdcache_pkg::*;
                     default:
                     begin
                         mem_req_valid_o = 1'b0;
-                        cmoh_fsm_d = CMOH_IDLE;
+                        cmoh_fsm_d = CMOH_RESP_CORE;
                     end
                 endcase
 
