@@ -40,7 +40,11 @@ import hpdcache_pkg::*;
     parameter type hpdcache_req_addr_t = logic,
     parameter type hpdcache_req_tid_t = logic,
     parameter type hpdcache_req_sid_t = logic,
-    parameter type hpdcache_req_data_t = logic
+    parameter type hpdcache_req_data_t = logic,
+
+    parameter type hpdcache_mem_id_t = logic,
+    parameter type hpdcache_mem_req_t = logic,
+    parameter type hpdcache_mem_resp_r_t = logic
 )
 //  }}}
 
@@ -56,6 +60,7 @@ import hpdcache_pkg::*;
     input  logic                  mshr_empty_i,
     input  logic                  rtab_empty_i,
     input  logic                  ctrl_empty_i,
+    output logic                  cmo_pending_o,
     //  }}}
 
     //  Request interface
@@ -110,6 +115,19 @@ import hpdcache_pkg::*;
     output hpdcache_tag_t         dir_updt_tag_o,
     // }}}
 
+    //  Read Memory Req Interface
+    //  {{{
+    input  logic                  mem_req_ready_i,
+    output logic                  mem_req_valid_o,
+    output hpdcache_mem_req_t     mem_req_o,
+    //  }}}
+
+    //  Read Memory Resp Interface
+    //  {{{
+    input  logic                  mem_resp_valid_i,
+    output logic                  mem_resp_ready_o,
+    //  }}}
+
     //  Flush Controller Interface
     //  {{{
     input  logic                  flush_empty_i,
@@ -133,7 +151,10 @@ import hpdcache_pkg::*;
         CMOH_FLUSH_ALL_NEXT,
         CMOH_FLUSH_ALL_LAST,
         CMOH_FLUSH_NLINE_FIRST,
-        CMOH_FLUSH_NLINE_NEXT
+        CMOH_FLUSH_NLINE_NEXT,
+        CMOH_MEM_REQ,
+        CMOH_WAIT_MEM_RESP,
+        CMOH_RESP_CORE
     } hpdcache_cmoh_fsm_t;
 //  }}}
 
@@ -248,9 +269,15 @@ import hpdcache_pkg::*;
 
         core_rsp_w      = 1'b0;
         core_rsp_send_d = core_rsp_send_q;
+        
 
         req_ready_o = 1'b0;
 
+        mem_req_valid_o = 1'b0;
+        mem_req_o = '0;
+
+        mem_resp_ready_o = 1'b0;
+        cmo_pending_o = 1'b0;
         cmoh_fsm_d = cmoh_fsm_q;
 
         unique case (cmoh_fsm_q)
@@ -287,23 +314,28 @@ import hpdcache_pkg::*;
                             cmoh_addr_d    = req_addr_i;
                             cmoh_way_reset = 1'b1;
                             cmoh_set_reset = 1'b1;
-                            if (mshr_empty_i && rtab_empty_i && ctrl_empty_i) begin // CMO
-                                unique if (req_op_i.is_inval_by_nline) begin
-                                    cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
-                                end else if (req_op_i.is_inval_all) begin
-                                    cmoh_fsm_d = CMOH_INVAL_SET;
-                                end else if (req_op_i.is_flush_by_nline) begin
-                                    cmoh_flush_req_inval_d = 1'b0;
-                                    cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
-                                end else if (req_op_i.is_flush_all) begin
-                                    cmoh_flush_req_inval_d = 1'b0;
-                                    cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
-                                end else if (req_op_i.is_flush_inval_by_nline) begin
-                                    cmoh_flush_req_inval_d = 1'b1;
-                                    cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
-                                end else if (req_op_i.is_flush_inval_all) begin
-                                    cmoh_flush_req_inval_d = 1'b1;
-                                    cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
+                            if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin
+                                if(HPDcacheCfg.u.cmoLocalOp) begin
+                                    unique if (cmoh_op_q.is_inval_by_nline) begin
+                                        cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
+                                    end else if (cmoh_op_q.is_inval_all) begin
+                                        cmoh_fsm_d = CMOH_INVAL_SET;
+                                    end else if (cmoh_op_q.is_flush_by_nline) begin
+                                        cmoh_flush_req_inval_d = 1'b0;
+                                        cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
+                                    end else if (cmoh_op_q.is_flush_all) begin
+                                        cmoh_flush_req_inval_d = 1'b0;
+                                        cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
+                                    end else if (cmoh_op_q.is_flush_inval_by_nline) begin
+                                        cmoh_flush_req_inval_d = 1'b1;
+                                        cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
+                                    end else if (cmoh_op_q.is_flush_inval_all) begin
+                                        cmoh_flush_req_inval_d = 1'b1;
+                                        cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
+                                    end
+                                end
+                                else begin
+                                    cmoh_fsm_d     = CMOH_MEM_REQ;
                                 end
                             end else begin
                                 cmoh_fsm_d = CMOH_WAIT_MSHR_RTAB_EMPTY;
@@ -320,23 +352,28 @@ import hpdcache_pkg::*;
                 end
             end
             CMOH_WAIT_MSHR_RTAB_EMPTY: begin
-                if (mshr_empty_i && rtab_empty_i && ctrl_empty_i) begin
-                    unique if (cmoh_op_q.is_inval_by_nline) begin
-                        cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
-                    end else if (cmoh_op_q.is_inval_all) begin
-                        cmoh_fsm_d = CMOH_INVAL_SET;
-                    end else if (cmoh_op_q.is_flush_by_nline) begin
-                        cmoh_flush_req_inval_d = 1'b0;
-                        cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
-                    end else if (cmoh_op_q.is_flush_all) begin
-                        cmoh_flush_req_inval_d = 1'b0;
-                        cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
-                    end else if (cmoh_op_q.is_flush_inval_by_nline) begin
-                        cmoh_flush_req_inval_d = 1'b1;
-                        cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
-                    end else if (cmoh_op_q.is_flush_inval_all) begin
-                        cmoh_flush_req_inval_d = 1'b1;
-                        cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
+                if (mshr_empty_i && rtab_empty_i && ctrl_empty_i && wbuf_empty_i) begin
+                    if(HPDcacheCfg.u.cmoLocalOp) begin
+                        unique if (cmoh_op_q.is_inval_by_nline) begin
+                            cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
+                        end else if (cmoh_op_q.is_inval_all) begin
+                            cmoh_fsm_d = CMOH_INVAL_SET;
+                        end else if (cmoh_op_q.is_flush_by_nline) begin
+                            cmoh_flush_req_inval_d = 1'b0;
+                            cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
+                        end else if (cmoh_op_q.is_flush_all) begin
+                            cmoh_flush_req_inval_d = 1'b0;
+                            cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
+                        end else if (cmoh_op_q.is_flush_inval_by_nline) begin
+                            cmoh_flush_req_inval_d = 1'b1;
+                            cmoh_fsm_d = CMOH_FLUSH_NLINE_FIRST;
+                        end else if (cmoh_op_q.is_flush_inval_all) begin
+                            cmoh_flush_req_inval_d = 1'b1;
+                            cmoh_fsm_d = CMOH_FLUSH_ALL_FIRST;
+                        end
+                    end
+                    else begin
+                        cmoh_fsm_d     = CMOH_MEM_REQ;
                     end
                 end
             end
@@ -361,12 +398,11 @@ import hpdcache_pkg::*;
                         dir_updt_fetch_o = 1'b0;
                         dir_updt_tag_o   = '0;
 
-                        core_rsp_send_d = core_rsp_rok;
-                        cmoh_fsm_d      = CMOH_IDLE;
+                        cmoh_fsm_d = CMOH_MEM_REQ;
                     end
 
                     //  The CMO requests a full invalidation (or flush with invalidation when the
-                    //  cache does not support WB policy)
+                    //  cache does not support WB policy) TODO CMO propagation to further levels if needed
                     cmoh_op_q.is_inval_all,
                     cmoh_op_q.is_flush_inval_all:
                     begin
@@ -474,8 +510,7 @@ import hpdcache_pkg::*;
                 end else if (cmoh_flush_req_inval_q) begin
                     cmoh_fsm_d = CMOH_INVAL_CHECK_NLINE;
                 end else begin
-                    core_rsp_send_d = core_rsp_rok;
-                    cmoh_fsm_d = CMOH_IDLE;
+                    cmoh_fsm_d = CMOH_MEM_REQ;
                 end
             end
             CMOH_FLUSH_NLINE_NEXT: begin
@@ -498,9 +533,54 @@ import hpdcache_pkg::*;
 
                 //  Make sure that all requests have been processed
                 if (flush_empty_i && !flush_alloc_o) begin
-                    core_rsp_send_d = core_rsp_rok;
+                    cmoh_fsm_d = CMOH_MEM_REQ;
+                end
+            end
+            CMOH_MEM_REQ: begin // Propagate CMO instructions to next cache level
+                
+                mem_resp_ready_o = 1'b1;
+                cmo_pending_o = 1'b1;
+                mem_req_valid_o = 1'b1;
+                mem_req_o.mem_req_addr = cmoh_addr_q;
+                mem_req_o.mem_req_command = HPDCACHE_MEM_CMO;
+                mem_req_o.mem_req_id = '1; // Reuse NC request id 
+                case(1'b1)
+                    req_op_i.is_inval_by_nline:
+                    begin
+                        mem_req_o.mem_req_cmo = HPDCACHE_MEM_CMO_INVAL;
+                    end
+                    req_op_i.is_flush_by_nline:
+                    begin
+                        mem_req_o.mem_req_cmo = HPDCACHE_MEM_CMO_CLEAN;
+                    end
+                    req_op_i.is_flush_inval_by_nline:
+                    begin
+                        mem_req_o.mem_req_cmo = HPDCACHE_MEM_CMO_FLUSH;
+                    end
+                    default:
+                    begin
+                        mem_req_valid_o = 1'b0;
+                        cmoh_fsm_d = CMOH_RESP_CORE;
+                    end
+                endcase
+
+                if(mem_req_ready_i)
+                begin
+                    cmoh_fsm_d = CMOH_WAIT_MEM_RESP;
+                end
+            end
+            CMOH_WAIT_MEM_RESP: begin
+                cmo_pending_o = 1'b1;
+                mem_resp_ready_o = 1'b1;
+
+                if(mem_resp_valid_i) cmoh_fsm_d = CMOH_RESP_CORE;
+            end
+            CMOH_RESP_CORE: begin
+                if(core_rsp_ready_i) begin
+                    core_rsp_send_d = core_rsp_rok; 
                     cmoh_fsm_d = CMOH_IDLE;
                 end
+                
             end
         endcase
     end

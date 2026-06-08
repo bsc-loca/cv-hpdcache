@@ -34,6 +34,7 @@
         __id_t                                mem_req_id; \
         hpdcache_pkg::hpdcache_mem_command_e  mem_req_command; \
         hpdcache_pkg::hpdcache_mem_atomic_e   mem_req_atomic; \
+        hpdcache_pkg::hpdcache_mem_cmo_e      mem_req_cmo; \
         logic                                 mem_req_cacheable; \
     }
 

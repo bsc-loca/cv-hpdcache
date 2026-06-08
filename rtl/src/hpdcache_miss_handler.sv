@@ -269,6 +269,7 @@ import hpdcache_pkg::*;
     assign mem_req_o.mem_req_size = hpdcache_mem_size_t'(REFILL_REQ_SIZE);
     assign mem_req_o.mem_req_command = HPDCACHE_MEM_READ;
     assign mem_req_o.mem_req_atomic = HPDCACHE_MEM_ATOMIC_ADD;
+    assign mem_req_o.mem_req_cmo = HPDCACHE_MEM_CMO_NONE;
     assign mem_req_o.mem_req_cacheable = 1'b1;
 
     if ((HPDcacheCfg.u.mshrSets > 1) && (HPDcacheCfg.u.mshrWays > 1))

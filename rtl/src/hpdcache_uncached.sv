@@ -696,6 +696,8 @@ import hpdcache_pkg::*;
         mem_req_read_o.mem_req_cacheable = 1'b0;
         mem_req_read_o.mem_req_command   = HPDCACHE_MEM_READ;
         mem_req_read_o.mem_req_atomic    = HPDCACHE_MEM_ATOMIC_ADD;
+        mem_req_read_o.mem_req_cmo       = HPDCACHE_MEM_CMO_NONE;
+
 
         unique case (1'b1)
             req_op_q.is_ld: begin
@@ -723,6 +725,7 @@ import hpdcache_pkg::*;
         mem_req_write_o.mem_req_size      = req_size_q;
         mem_req_write_o.mem_req_id        = mem_write_id_i;
         mem_req_write_o.mem_req_cacheable = 1'b0;
+        mem_req_write_o.mem_req_cmo       = HPDCACHE_MEM_CMO_NONE;
         unique case (1'b1)
             req_op_q.is_amo_sc: begin
                 mem_req_write_o.mem_req_command = HPDCACHE_MEM_ATOMIC;

@@ -313,6 +313,7 @@ import hpdcache_pkg::*;
     logic                  cmo_core_rsp_ready;
     logic                  cmo_core_rsp_valid;
     hpdcache_rsp_t         cmo_core_rsp;
+    logic                  cmo_pending;
 
     logic                  flush_empty;
     logic                  flush_busy;
@@ -347,6 +348,10 @@ import hpdcache_pkg::*;
     hpdcache_tag_t         arb_tag;
     hpdcache_pma_t         arb_pma;
 
+    logic                  mem_req_cmo_ready;
+    logic                  mem_req_cmo_valid;
+    hpdcache_mem_req_t     mem_req_cmo;
+
     logic                  mem_req_read_miss_ready;
     logic                  mem_req_read_miss_valid;
     hpdcache_mem_req_t     mem_req_read_miss;
@@ -364,6 +369,9 @@ import hpdcache_pkg::*;
     logic                  mem_resp_read_uc_ready;
     logic                  mem_resp_read_uc_valid;
     hpdcache_mem_resp_r_t  mem_resp_read_uc;
+
+    logic                  mem_resp_cmo_ready;
+    logic                  mem_resp_cmo_valid;
 
     logic                  mem_req_write_wbuf_ready;
     logic                  mem_req_write_wbuf_valid;
@@ -930,7 +938,11 @@ import hpdcache_pkg::*;
         .hpdcache_req_addr_t           (hpdcache_req_addr_t),
         .hpdcache_req_tid_t            (hpdcache_req_tid_t),
         .hpdcache_req_sid_t            (hpdcache_req_sid_t),
-        .hpdcache_req_data_t           (hpdcache_req_data_t)
+        .hpdcache_req_data_t           (hpdcache_req_data_t),
+
+        .hpdcache_mem_id_t             (hpdcache_mem_id_t),
+        .hpdcache_mem_req_t            (hpdcache_mem_req_t),
+        .hpdcache_mem_resp_r_t         (hpdcache_mem_resp_r_t)
     ) hpdcache_cmo_i(
         .clk_i,
         .rst_ni,
@@ -939,6 +951,7 @@ import hpdcache_pkg::*;
         .mshr_empty_i                  (miss_mshr_empty),
         .rtab_empty_i                  (rtab_empty),
         .ctrl_empty_i                  (ctrl_empty),
+        .cmo_pending_o                 (cmo_pending),
 
         .req_valid_i                   (cmo_req_valid),
         .req_ready_o                   (cmo_ready),
@@ -979,6 +992,13 @@ import hpdcache_pkg::*;
         .dir_updt_dirty_o              (cmo_dir_updt_dirty),
         .dir_updt_fetch_o              (cmo_dir_updt_fetch),
         .dir_updt_tag_o                (cmo_dir_updt_tag),
+
+        .mem_req_ready_i               (mem_req_cmo_ready),
+        .mem_req_valid_o               (mem_req_cmo_valid),
+        .mem_req_o                     (mem_req_cmo),
+
+        .mem_resp_ready_o              (mem_resp_cmo_ready),
+        .mem_resp_valid_i              (mem_resp_cmo_valid),
 
         .flush_empty_i                 (flush_empty),
         .flush_alloc_o                 (cmo_flush_alloc),
@@ -1064,6 +1084,7 @@ import hpdcache_pkg::*;
         assign mem_req_write_flush             = '{
             mem_req_command: HPDCACHE_MEM_READ,
             mem_req_atomic : HPDCACHE_MEM_ATOMIC_ADD,
+            mem_req_cmo    : HPDCACHE_MEM_CMO_INVAL,
             default        : '0
         };
         assign mem_req_write_flush_data_valid  = 1'b0;
@@ -1078,22 +1099,27 @@ import hpdcache_pkg::*;
     //      Read request interface
     //
     //      There is a fixed-priority arbiter between:
-    //      - the miss_handler (higher priority);
+    //      - the cmo unit (higher priority);
+    //      - the miss_handler
     //      - the uncacheable request handler (lower priority)
-    logic              [1:0] arb_mem_req_read_ready;
-    logic              [1:0] arb_mem_req_read_valid;
-    hpdcache_mem_req_t [1:0] arb_mem_req_read;
+    logic              [2:0] arb_mem_req_read_ready;
+    logic              [2:0] arb_mem_req_read_valid;
+    hpdcache_mem_req_t [2:0] arb_mem_req_read;
 
-    assign mem_req_read_miss_ready = arb_mem_req_read_ready[0];
-    assign arb_mem_req_read_valid[0] = mem_req_read_miss_valid;
-    assign arb_mem_req_read[0] = mem_req_read_miss;
+    assign mem_req_cmo_ready = arb_mem_req_read_ready[0];
+    assign arb_mem_req_read_valid[0] = mem_req_cmo_valid;
+    assign arb_mem_req_read[0] = mem_req_cmo;
 
-    assign mem_req_read_uc_ready = arb_mem_req_read_ready[1];
-    assign arb_mem_req_read_valid[1] = mem_req_read_uc_valid;
-    assign arb_mem_req_read[1] = mem_req_read_uc;
+    assign mem_req_read_miss_ready = arb_mem_req_read_ready[1];
+    assign arb_mem_req_read_valid[1] = mem_req_read_miss_valid;
+    assign arb_mem_req_read[1] = mem_req_read_miss;
+
+    assign mem_req_read_uc_ready = arb_mem_req_read_ready[2];
+    assign arb_mem_req_read_valid[2] = mem_req_read_uc_valid;
+    assign arb_mem_req_read[2] = mem_req_read_uc;
 
     hpdcache_mem_req_read_arbiter #(
-        .N                     (2),
+        .N                     (3),
         .hpdcache_mem_req_t    (hpdcache_mem_req_t)
     ) hpdcache_mem_req_read_arbiter_i(
         .clk_i,
@@ -1113,9 +1139,14 @@ import hpdcache_pkg::*;
     begin : mem_resp_read_demux_comb
         mem_resp_read_uc_valid = 1'b0;
         mem_resp_read_miss_valid = 1'b0;
+        mem_resp_cmo_valid     = 1'b0;
         mem_resp_read_ready_o = 1'b0;
         if (mem_resp_read_valid_i) begin
-            if (mem_resp_read_i.mem_resp_r_id == {HPDcacheCfg.u.memIdWidth{1'b1}} && ~mem_resp_read_miss_inval) begin
+            if (mem_resp_read_i.mem_resp_r_id == {HPDcacheCfg.u.memIdWidth{1'b1}} && cmo_pending && ~mem_resp_read_miss_inval) begin
+                mem_resp_cmo_valid = 1'b1;
+                mem_resp_read_ready_o = mem_resp_cmo_ready;
+            end
+            else if (mem_resp_read_i.mem_resp_r_id == {HPDcacheCfg.u.memIdWidth{1'b1}} && ~mem_resp_read_miss_inval) begin
                 mem_resp_read_uc_valid = 1'b1;
                 mem_resp_read_ready_o = mem_resp_read_uc_ready;
             end else begin

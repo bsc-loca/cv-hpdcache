@@ -172,7 +172,9 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
     logic                                       req_is_read;
     logic                                       req_is_write;
     logic                                       req_is_atomic;
+    logic                                       req_is_cmo;
     amo_t                                       req_amo_op_type;
+    cmo_t                                       req_cmo_op_type;
     // Data & Byte mask sended by the request
     logic [HPDcacheMemDataWidth-1:0]                  req_wdata;
     // FSM State 
@@ -237,7 +239,8 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
                                                 // Request type
            l15_req_o.l15_rqtype               = (req_is_ifill) ? L15_IMISS_RQ :
                                                 (req_is_read)  ? L15_LOAD_RQ  :
-                                                (req_is_write) ? L15_STORE_RQ : L15_ATOMIC_RQ,
+                                                (req_is_write) ? L15_STORE_RQ :
+                                                (req_is_cmo)   ? L15_CMO_RQ   : L15_ATOMIC_RQ,
            l15_req_o.l15_nc                   = ~req_i.mem_req_cacheable,
                                                 // IMiss Unch: 4B Cach: 32B cacheline; Load/Store/AMO Max 16B cacheline (other possible sizes: 1,2,4,8B)
            l15_req_o.l15_size                 = (req_is_ifill)                              ? ((req_i.mem_req_cacheable) ? IcacheCachableSize : IcacheNoCachableSize) : // IMiss
@@ -252,6 +255,7 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
            l15_req_o.l15_data_next_entry      = '0, // unused in Ariane (only used for CAS atomic requests)
            l15_req_o.l15_csm_data             = '0, // unused in Ariane (only used for coherence domain restriction features)
            l15_req_o.l15_amo_op               = req_amo_op_type,
+           l15_req_o.l15_cmo_op               = (req_is_cmo) ? req_cmo_op_type : CMO_NONE,
            l15_req_o.l15_prefetch             = '0, // unused in openpiton
            l15_req_o.l15_invalidate_cacheline = '0, // unused by Ariane as L1 has no ECC at the moment
            l15_req_o.l15_blockstore           = '0, // unused in openpiton
@@ -278,11 +282,12 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
         end
     end 
 
-    // Type of request based on the request mux index port (req_index_i: IcachePort->IMISS, DcacheReadPort->Read DcacheWritePort-> Write/AMO)
+    // Type of request based on the request mux index port (req_index_i: IcachePort->IMISS, DcacheReadPort->Read/CMO DcacheWritePort-> Write/AMO)
     assign req_is_ifill                       = req_index_i[IcachePort],
-           req_is_read                        = req_index_i[DcacheReadPort]  & (req_i.mem_req_command==HPDCACHE_MEM_READ),  // Load 
-           req_is_write                       = req_index_i[DcacheWritePort] & (req_i.mem_req_command==HPDCACHE_MEM_WRITE), // Store
-           req_is_atomic                      = req_index_i[DcacheWritePort] & (req_i.mem_req_command==HPDCACHE_MEM_ATOMIC); // AMO
+           req_is_read                        = req_index_i[DcacheReadPort]  & (req_i.mem_req_command==HPDCACHE_MEM_READ),   // Load 
+           req_is_write                       = req_index_i[DcacheWritePort] & (req_i.mem_req_command==HPDCACHE_MEM_WRITE),  // Store
+           req_is_atomic                      = req_index_i[DcacheWritePort] & (req_i.mem_req_command==HPDCACHE_MEM_ATOMIC), // AMO
+           req_is_cmo                         = req_index_i[DcacheReadPort]  & (req_i.mem_req_command==HPDCACHE_MEM_CMO); // CMO  
 
     // Data sended by the request
     // If the request is a AMO_CLR, its translated as a AMO_AND. Therefore, the data sended has to be inverted
@@ -510,6 +515,20 @@ module hpdcache_to_l15 import hpdcache_pkg::*; import wt_cache_pkg::*;
         end
     end 
     // }}}
+
+    // CMO support: Translate cmo op type (HPDC -> OpenPiton)
+    // {{{
+    always_comb
+    begin:cmo_req_op_type_comb
+        unique case (req_i.mem_req_cmo)
+            HPDCACHE_MEM_CMO_INVAL : req_cmo_op_type = CMO_INVAL;
+            HPDCACHE_MEM_CMO_CLEAN : req_cmo_op_type = CMO_CLEAN;
+            HPDCACHE_MEM_CMO_FLUSH : req_cmo_op_type = CMO_FLUSH;
+            default:                 req_cmo_op_type = CMO_NONE;
+        endcase
+    end
+    // }}}
+
 
     // AMO support
     // {{{
